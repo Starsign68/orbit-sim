@@ -55,11 +55,6 @@ function loop(t) {
       vel.y -= (mouse.y - mouse.start.y) * 5;
     }
 
-    distance = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2));
-
-    // gravity
-    //vel.y -= 10000000000/Math.pow(pos.y,2);
-
     // move
     pos.x += vel.x;
     pos.y += vel.y;
@@ -81,34 +76,14 @@ function loop(t) {
 
   if(zoom_end > t)
     scale += (desired_scale - scale) * dt/(zoom_end-t);
-  else
+  else {
+    scale = desired_scale;
     zoom_end = null;
+  }
 
   var size = 6000000;
-  var surface_distance = distance - size;
 
   /** render time **/
-
-  ctx.drawImage(background,0,0);
-
-  ctx.fillStyle = '#27e';
-  
-
-  $('#d').html(
-    'scale: ' + scale +
-    '<br>d: ' + distance +
-    '<br>s: ' + surface_distance
-  );
-
-  ctx.beginPath();
-  ctx.arc(
-    300 - pos.x/scale,
-    300 + pos.y/scale,
-    size/scale,
-    0, 2*Math.PI
-  );
-  ctx.fill();
-  
 
   /*
   var pos_mod_x = (pos.x < 0) ? 1024 : -1024
@@ -120,8 +95,27 @@ function loop(t) {
   ctx.drawImage(background,pos.x%1024,      pos.y%1024);
   */
 
-  if(mouse.buttons & 1) {
+  ctx.drawImage(background,0,0);
 
+  $('#d').html(
+    'scale: ' + scale +
+    '<br>pos: ' + pos.x + ', ' + pos.y
+  );
+
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = size/10 / scale;
+  ctx.fillStyle = '#27e';
+  ctx.beginPath();
+  ctx.arc(
+    300 - pos.x/scale,
+    300 + pos.y/scale,
+    size/scale,
+    0, 2*Math.PI
+  );
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  if(mouse.buttons & 1) {
     ctx.strokeStyle = '#fd1';
     ctx.lineWidth = '3';
     ctx.beginPath();
