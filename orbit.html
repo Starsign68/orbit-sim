@@ -4,9 +4,26 @@
   <title>Orbit sim</title>
   <script src="vector.js"></script>
   <script src="orbit.js"></script>
+
+  <style type="text/css">
+    body {
+        background-color: #000;
+        color: #E1F3F8;
+    }
+
+   canvas {
+        box-shadow: 0 0 10px #E1F3F8;
+        display: block;
+        margin: 1em auto;
+    }
+
+    #d {
+        text-align: center;
+    }
+  </style>
 </head>
 <body>
-  <canvas id="screen" width=600 height=600>This lovely canvas just isn't working for you</canvas>
-  <div id='d' style="display:inline-block;">hi</div>
+  <canvas id="screen" width=600 height=600>Unfortunately, your browser doesn't support the canvas element. Please use a newer browser to use this.</canvas>
+  <div id='d'></div>
 </body>
 </html>
