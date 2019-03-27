@@ -11,6 +11,7 @@ var mouse = {
 };
 
 var scale = 40000;
+var initial_scale = scale;
 var desired_scale = scale;
 var zoom_end = null;
 
@@ -64,7 +65,8 @@ function loop(t) {
 
   if(mouse.scroll) {
     zoom_end = t + 500;
-    desired_scale *= Math.pow(2, mouse.scroll/300);
+    initial_scale = scale;
+    desired_scale *= (mouse.scroll > 0) ? 1.6 : 0.625;
 
     mouse.scroll = 0;
   }
@@ -74,8 +76,9 @@ function loop(t) {
   else if(desired_scale < 1)
     desired_scale = 1;
 
-  if(zoom_end > t)
-    scale += (desired_scale - scale) * dt/(zoom_end-t);
+  if(zoom_end > t) {
+    scale = desired_scale + (initial_scale - desired_scale)*(zoom_end-t)/500;
+  }
   else {
     scale = desired_scale;
     zoom_end = null;
