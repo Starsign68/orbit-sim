@@ -1,5 +1,5 @@
 var ctx=null;
-var background = null;
+var background = generate_background(1024);
 var pos = {x:0,y:10000000};
 var vel = {x:0, y:0};
 var mouse = {
@@ -15,14 +15,22 @@ var initial_scale = scale;
 var desired_scale = scale;
 var zoom_end = null;
 
-var mouse_click_pos = {x:null, y:null};
+var debug_output = null;
+var debug_lines = {};
 
-$(function() {
-  background = generate_background(1024);
+document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
-  ctx = canvas.getContext('2d');
 
-  $('#screen').on('mousedown mouseup mousemove', function(e) {
+  canvas.addEventListener('mousedown', mouseEvent, false);
+  canvas.addEventListener('mouseup',   mouseEvent, false);
+  canvas.addEventListener('mousemove', mouseEvent, false);
+
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    mouse.scroll = e.deltaY;
+  });
+
+  function mouseEvent(e) {
     mouse.x = e.offsetX;
     mouse.y = e.offsetY;
     mouse.buttons = e.buttons;
@@ -30,12 +38,11 @@ $(function() {
       mouse.start = {x: mouse.x, y: mouse.y};
     else if(e.type == 'mouseup')
       mouse.start = null;
-  });
+  }
 
-  $('#screen').on('wheel', function(e) {
-    mouse.scroll = e.originalEvent.deltaY;
-  });
+  debug_output = document.getElementById('d');
 
+  ctx = canvas.getContext('2d');
   requestAnimationFrame(loop);
 });
 
@@ -59,6 +66,8 @@ function loop(t) {
     // move
     pos.x += vel.x;
     pos.y += vel.y;
+
+    debug_lines.pos = pos.x + ', ' + pos.y;
 
     phys_debt -= phys_step;
   }
@@ -84,26 +93,13 @@ function loop(t) {
     zoom_end = null;
   }
 
+  debug_lines.scale = scale;
+
   var size = 6000000;
 
   /** render time **/
 
-  /*
-  var pos_mod_x = (pos.x < 0) ? 1024 : -1024
-  var pos_mod_y = (pos.y < 0) ? 1024 : -1024
-  
-  ctx.drawImage(background,pos.x%1024+pos_mod_x, pos.y%1024+pos_mod_y);
-  ctx.drawImage(background,pos.x%1024+pos_mod_x, pos.y%1024);
-  ctx.drawImage(background,pos.x%1024,      pos.y%1024+pos_mod_y);
-  ctx.drawImage(background,pos.x%1024,      pos.y%1024);
-  */
-
   ctx.drawImage(background,0,0);
-
-  $('#d').html(
-    'scale: ' + scale +
-    '<br>pos: ' + pos.x + ', ' + pos.y
-  );
 
   ctx.shadowColor = '#fff';
   ctx.shadowBlur = size/10 / scale;
@@ -132,6 +128,11 @@ function loop(t) {
   ctx.arc(300,300,5,0,2*Math.PI);
   ctx.fill();
 
+  d.innerText = '';
+  for(var name in debug_lines) {
+    d.innerText += name + ': ' + debug_lines[name] + '\n';
+  }
+
   requestAnimationFrame(loop);
 }
 
@@ -146,10 +147,6 @@ function generate_background(size) {
 
   for(var i = 0; i < Math.pow(size/16,2); i++) {
     var temp = 3000 + Math.floor(Math.random() * 15000);
-    //var temp = 2000+ 800*Math.log(Math.ceil(Math.random() * 30000));
-    //var temp = 2000+ 3000/Math.random();
-    //var temp = 20000 - 30000 * Math.pow(Math.random()-0.3,2);
-    //var temp = 30000 * (Math.pow(1.4 * Math.random() - 0.6, 3) + 0.2);
 
     ctx.fillStyle = temp_to_colour(temp);
     ctx.beginPath();
