@@ -1,12 +1,18 @@
-function Vec(a,b) {
-  if(a instanceof Vec) {
-    this.x = a.x;
-    this.y = a.y;
+function Vec(x,y) {
+  if(x == undefined) {
+    x = 0;
+    y = 0;
   }
-  else {
-    this.x = a;
-    this.y = b;
+  else if(x.x && x.y) {
+    y = x.y;
+    x = x.x;
   }
+  else if(y == undefined) {
+    y = 0;
+  }
+  
+  this.x = x;
+  this.y = y;
 }
 
 Vec.prototype.negate = function negate() {
@@ -34,12 +40,14 @@ Vec.prototype.scale = function scale(factor) {
 }
 
 Vec.prototype.normalise = function normalise() {
-  this.scale(1/this.mag());
+  var mag = this.mag();
+  if(mag > 0)
+    this.scale(1/this.mag());
   return this;
 }
 
 Vec.prototype.mag = function mag() {
-  return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+  return Math.sqrt(this.x * this.x + this.y * this.y);
 }
 
 Vec.prototype.arg = function arg() {
