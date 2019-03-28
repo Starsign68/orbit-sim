@@ -1,7 +1,7 @@
 var ctx=null;
 var background = generate_background(1024);
-var pos = {x:0,y:10000000};
-var vel = {x:0, y:0};
+var pos = new Vec(0,10000000);
+var vel = new Vec(0,0);
 var mouse = {
   x: null,
   y: null,
@@ -9,6 +9,31 @@ var mouse = {
   start: null,
   scroll: 0
 };
+
+var system = {
+  a: 0,
+  M: 0,
+  r: 695700000,
+  m: 2e30,
+  satellites: [
+    {
+      a: 10000000000,
+      M: 0,
+      r: 6000000,
+      m: 6e24
+    }
+  ]
+};
+
+function setParents(body) {
+  if(body.satellites) {
+    for(var i in body.satellites) {
+      body.satellites[i].parent = body;
+      setParents(body.satellites[i]);
+    }
+  }
+}
+setParents(system);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -59,13 +84,22 @@ function loop(t) {
   while(phys_debt > phys_step) {
     // thrust
     if(mouse.buttons & 1) {
-      vel.x += (mouse.x - mouse.start.x) * 5;
-      vel.y -= (mouse.y - mouse.start.y) * 5;
+      vel.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(5));
     }
 
+    function updateBodyPos(body) {
+      body.M += 0.001;
+      if(body.M > Math.PI)
+        body.M -= Math.PI;
+      body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+      if(body.satellites)
+        for(var i in body.satellites)
+          updateBodyPos(body.satellites[i]);
+    }
+    updateBodyPos(system);
+
     // move
-    pos.x += vel.x;
-    pos.y += vel.y;
+    pos.add(vel);
 
     debug_lines.pos = pos.x + ', ' + pos.y;
 
@@ -95,23 +129,29 @@ function loop(t) {
 
   debug_lines.scale = scale;
 
-  var size = 6000000;
-
   /** render time **/
 
   ctx.drawImage(background,0,0);
 
-  ctx.shadowColor = '#fff';
-  ctx.shadowBlur = size/10 / scale;
-  ctx.fillStyle = '#27e';
-  ctx.beginPath();
-  ctx.arc(
-    300 - pos.x/scale,
-    300 + pos.y/scale,
-    size/scale,
-    0, 2*Math.PI
-  );
-  ctx.fill();
+  function drawBody(body) {
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = body.r/10 / scale;
+    ctx.fillStyle = '#27e';
+    ctx.beginPath();
+    ctx.arc(
+      300 + (body.pos.x - pos.x)/scale,
+      300 + (body.pos.y + pos.y)/scale,
+      body.r/scale,
+      0, 2*Math.PI
+    );
+    ctx.fill();
+
+    if(body.satellites)
+      for(var i in body.satellites)
+        drawBody(body.satellites[i]);
+  }
+  drawBody(system);
+
   ctx.shadowBlur = 0;
 
   if(mouse.buttons & 1) {
@@ -130,7 +170,7 @@ function loop(t) {
 
   d.innerText = '';
   for(var name in debug_lines) {
-    d.innerText += name + ': ' + debug_lines[name] + '\n';
+    d.textContent += name + ': ' + debug_lines[name] + '\r\n';
   }
 
   requestAnimationFrame(loop);
