@@ -49,28 +49,30 @@ Vec.prototype.negate = function negate() {
   return this.scale(-1);
 }
 
-// chainable
-Vec.prototype.set_mag = function set_mag(new_mag) {
-  var old_mag = this.mag;
-  if(old_mag == 0) {
-    if(new_mag == 0)
-      return this;
-    else
-      throw 'Tried to resize a zero vector';
-  }
-  return this.scale(new_mag/old_mag);
-}
-
 Object.defineProperty(Vec.prototype, 'mag', {
   get: function get() {
     return Math.sqrt(this.x * this.x + this.y * this.y);
   },
-  set: Vec.prototype.set_mag
+  set: function set(new_mag) {
+    var old_mag = this.mag;
+    if(old_mag == 0) {
+      if(new_mag == 0)
+        return this;
+      else
+        throw 'Tried to resize a zero vector';
+    }
+    this.scale(new_mag/old_mag);
+  }
 });
 
-Vec.prototype.normalise = function normalise() {
-  this.mag = 1;
+// chainable
+Vec.prototype.set_mag = function set_mag(new_mag) {
+  this.mag = new_mag;
   return this;
+}
+
+Vec.prototype.normalise = function normalise() {
+  return this.set_mag(1);
 }
 
 Object.defineProperty(Vec.prototype, 'arg', {
