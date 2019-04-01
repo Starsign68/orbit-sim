@@ -1,23 +1,29 @@
+'use strict';
 function Vec(x,y) {
+  this.set(x,y);
+}
+
+Vec.prototype.set = function set(x,y) {
   if(x == undefined) {
     x = 0;
     y = 0;
   }
-  else if(x.x && x.y) {
-    y = x.y;
-    x = x.x;
-  }
   else if(y == undefined) {
-    y = 0;
+    if(x.x && x.y) {
+      y = x.y;
+      x = x.x;
+    }
+    else if(x[0] && x[1]) {
+      y = x[1];
+      x = x[0];
+    }
+    else
+      y = 0;
   }
   
   this.x = x;
   this.y = y;
-}
 
-Vec.prototype.negate = function negate() {
-  this.x *= -1;
-  this.y *= -1;
   return this;
 }
 
@@ -39,17 +45,40 @@ Vec.prototype.scale = function scale(factor) {
   return this;
 }
 
+Vec.prototype.negate = function negate() {
+  return this.scale(-1);
+}
+
+// chainable
+Vec.prototype.set_mag = function set_mag(new_mag) {
+  var old_mag = this.mag;
+  if(old_mag == 0) {
+    if(new_mag == 0)
+      return this;
+    else
+      throw 'Tried to resize a zero vector';
+  }
+  return this.scale(new_mag/old_mag);
+}
+
+Object.defineProperty(Vec.prototype, 'mag', {
+  get: function get() {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+  },
+  set: Vec.prototype.set_mag
+});
+
 Vec.prototype.normalise = function normalise() {
-  var mag = this.mag();
-  if(mag > 0)
-    this.scale(1/this.mag());
+  this.mag = 1;
   return this;
 }
 
-Vec.prototype.mag = function mag() {
-  return Math.sqrt(this.x * this.x + this.y * this.y);
-}
+Object.defineProperty(Vec.prototype, 'arg', {
+  get: function get() {
+    return Math.atan2(this.y, this.x);
+  }
+});
 
-Vec.prototype.arg = function arg() {
-  return Math.atan2(this.y, this.x);
+Vec.prototype.toString = function toString() {
+  return '('+this.x+', '+this.y+')';
 }
