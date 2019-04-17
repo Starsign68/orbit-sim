@@ -1,7 +1,6 @@
-var ctx=null;
-var background = generate_background(1024);
-var pos = {x:0,y:10000000};
-var vel = {x:0, y:0};
+'use strict';
+var pos = new Vec(0,10000000);
+var vel = new Vec(0,0);
 var mouse = {
   x: null,
   y: null,
@@ -10,6 +9,33 @@ var mouse = {
   scroll: 0
 };
 
+var system = {
+  a: 0,
+  M: 0,
+  r: 695700000,
+  m: 2e30,
+  colour: '#fffbe0',
+  satellites: [
+    {
+      a: 10000000000,
+      M: 0,
+      r: 6000000,
+      m: 6e24,
+      colour: '#16825c'
+    }
+  ]
+};
+
+function setParents(body) {
+  if(body.satellites) {
+    for(var i in body.satellites) {
+      body.satellites[i].parent = body;
+      setParents(body.satellites[i]);
+    }
+  }
+}
+setParents(system);
+
 var scale = 40000;
 var initial_scale = scale;
 var desired_scale = scale;
@@ -17,6 +43,8 @@ var zoom_end = null;
 
 var debug_output = null;
 var debug_lines = {};
+var ctx=null;
+var background = generate_background(1200);
 
 document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
@@ -34,10 +62,11 @@ document.addEventListener('DOMContentLoaded',function() {
     mouse.x = e.offsetX;
     mouse.y = e.offsetY;
     mouse.buttons = e.buttons;
-    if(e.type == 'mousedown')
-      mouse.start = {x: mouse.x, y: mouse.y};
-    else if(e.type == 'mouseup')
+
+    if(!(mouse.buttons & 1))
       mouse.start = null;
+    else if(!mouse.start)
+      mouse.start = {x: mouse.x, y: mouse.y};
   }
 
   debug_output = document.getElementById('d');
@@ -58,16 +87,26 @@ function loop(t) {
 
   while(phys_debt > phys_step) {
     // thrust
-    if(mouse.buttons & 1) {
-      vel.x += (mouse.x - mouse.start.x) * 5;
-      vel.y -= (mouse.y - mouse.start.y) * 5;
+    if(mouse.start) {
+      vel.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(5));
     }
 
+    function updateBodyPos(body) {
+      body.M += 0.0001;
+      if(body.M > Math.PI)
+        body.M -= Math.PI;
+      body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+      if(body.satellites)
+        for(var i in body.satellites)
+          updateBodyPos(body.satellites[i]);
+    }
+    updateBodyPos(system);
+
     // move
-    pos.x += vel.x;
-    pos.y += vel.y;
+    pos.add(vel);
 
     debug_lines.pos = pos.x + ', ' + pos.y;
+    debug_lines.vel = vel.x + ', ' + vel.y;
 
     phys_debt -= phys_step;
   }
@@ -82,8 +121,8 @@ function loop(t) {
 
   if(desired_scale > 100000000)
     desired_scale = 100000000;
-  else if(desired_scale < 1)
-    desired_scale = 1;
+  else if(desired_scale < 10)
+    desired_scale = 10;
 
   if(zoom_end > t) {
     scale = desired_scale + (initial_scale - desired_scale)*(zoom_end-t)/500;
@@ -95,26 +134,32 @@ function loop(t) {
 
   debug_lines.scale = scale;
 
-  var size = 6000000;
-
   /** render time **/
 
-  ctx.drawImage(background,0,0);
+  ctx.drawImage(background, -300*pos.x/100000000000 - 300, 300*pos.y/100000000000 - 300);
 
-  ctx.shadowColor = '#fff';
-  ctx.shadowBlur = size/10 / scale;
-  ctx.fillStyle = '#27e';
-  ctx.beginPath();
-  ctx.arc(
-    300 - pos.x/scale,
-    300 + pos.y/scale,
-    size/scale,
-    0, 2*Math.PI
-  );
-  ctx.fill();
+  function drawBody(body) {
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = body.r/10 / scale;
+    ctx.fillStyle = body.colour;
+    ctx.beginPath();
+    ctx.arc(
+      300 + (body.pos.x - pos.x)/scale,
+      300 - (body.pos.y - pos.y)/scale,
+      body.r/scale,
+      0, 2*Math.PI
+    );
+    ctx.fill();
+
+    if(body.satellites)
+      for(var i in body.satellites)
+        drawBody(body.satellites[i]);
+  }
+  drawBody(system);
+
   ctx.shadowBlur = 0;
 
-  if(mouse.buttons & 1) {
+  if(mouse.start) {
     ctx.strokeStyle = '#fd1';
     ctx.lineWidth = '3';
     ctx.beginPath();
@@ -130,7 +175,7 @@ function loop(t) {
 
   d.innerText = '';
   for(var name in debug_lines) {
-    d.innerText += name + ': ' + debug_lines[name] + '\n';
+    d.textContent += name + ': ' + debug_lines[name] + '\r\n';
   }
 
   requestAnimationFrame(loop);
