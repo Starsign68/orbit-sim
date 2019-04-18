@@ -46,6 +46,9 @@ var debug_lines = {};
 var ctx=null;
 var background = generate_background(1200);
 
+var last_time = null;
+var phys_step = 1000/60;
+
 document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
 
@@ -72,20 +75,20 @@ document.addEventListener('DOMContentLoaded',function() {
   debug_output = document.getElementById('d');
 
   ctx = canvas.getContext('2d');
-  requestAnimationFrame(loop);
+  requestAnimationFrame(function(t){
+    last_time=t;
+    requestAnimationFrame(loop);
+  });
 });
 
-var last_time = null;
-var phys_debt = 0;
-var phys_step = 1000/60;
+var dt = 0;
 
 function loop(t) {
-  var dt = t - last_time;
-  phys_debt += Math.min(dt, 1000);
+  dt = Math.min(t - last_time, 5 * phys_step);
   last_time = t;
   var distance = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2));
 
-  while(phys_debt > phys_step) {
+  while(dt > phys_step) {
     // thrust
     if(mouse.start) {
       vel.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(5));
@@ -105,10 +108,10 @@ function loop(t) {
     // move
     pos.add(vel);
 
-    debug_lines.pos = pos.x + ', ' + pos.y;
-    debug_lines.vel = vel.x + ', ' + vel.y;
+    debug_lines.pos = pos;
+    debug_lines.vel = vel;
 
-    phys_debt -= phys_step;
+    dt -= phys_step;
   }
 
   if(mouse.scroll) {
@@ -191,14 +194,14 @@ function generate_background(size) {
   ctx.fillRect(0,0,size,size);
 
   for(var i = 0; i < Math.pow(size/16,2); i++) {
-    var temp = 3000 + Math.floor(Math.random() * 15000);
+    var temp = 3500 + Math.floor(Math.random() * 8000);
 
     ctx.fillStyle = temp_to_colour(temp);
     ctx.beginPath();
     ctx.arc(
       Math.floor(Math.random() * size),
       Math.floor(Math.random() * size),
-      temp/20000 + 1,
+      temp/15000 + 1,
       0,2*Math.PI
     );
     ctx.fill();
