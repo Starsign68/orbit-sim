@@ -9,11 +9,11 @@ Vec.prototype.set = function set(x,y) {
     y = 0;
   }
   else if(y == undefined) {
-    if(x.x && x.y) {
+    if('x' in x && 'y' in x) {
       y = x.y;
       x = x.x;
     }
-    else if(x[0] && x[1]) {
+    else if(0 in x && 1 in x) {
       y = x[1];
       x = x[0];
     }

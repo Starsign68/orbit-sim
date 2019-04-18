@@ -1,6 +1,4 @@
 'use strict';
-var pos = new Vec(0,10000000);
-var vel = new Vec(0,0);
 var mouse = {
   x: null,
   y: null,
@@ -35,6 +33,9 @@ var system = {
     }
   }
 })(system);
+
+var pos = new Vec(system.satellites[0].pos).add(new Vec(0,10000000));
+var vel = new Vec(100000,100000);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -86,7 +87,6 @@ var dt = 0;
 function loop(t) {
   dt = Math.min(t - last_time, 5 * phys_step);
   last_time = t;
-  var distance = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2));
   while(dt > phys_step) {
     // thrust
     if(mouse.start) {
@@ -98,6 +98,10 @@ function loop(t) {
       if(body.M > 2*Math.PI)
         body.M -= 2*Math.PI;
       body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+
+      var displacement = pos.to(body.pos);
+      vel.add(displacement.set_mag(body.m/1e8/Math.pow(displacement.mag, 2)));
+
       if(body.satellites)
         for(var i in body.satellites)
           updateBodyPos(body.satellites[i]);
