@@ -26,15 +26,15 @@ var system = {
   ]
 };
 
-function setParents(body) {
+(function initialise_system(body) {
+  body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
   if(body.satellites) {
     for(var i in body.satellites) {
       body.satellites[i].parent = body;
-      setParents(body.satellites[i]);
+      initialise_system(body.satellites[i]);
     }
   }
-}
-setParents(system);
+})(system);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -87,23 +87,21 @@ function loop(t) {
   dt = Math.min(t - last_time, 5 * phys_step);
   last_time = t;
   var distance = Math.sqrt(Math.pow(pos.x, 2) + Math.pow(pos.y, 2));
-
   while(dt > phys_step) {
     // thrust
     if(mouse.start) {
       vel.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(5));
     }
 
-    function updateBodyPos(body) {
-      body.M += 0.0001;
-      if(body.M > Math.PI)
-        body.M -= Math.PI;
+    (function updateBodyPos(body) {
+      body.M += 0.00001;
+      if(body.M > 2*Math.PI)
+        body.M -= 2*Math.PI;
       body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
       if(body.satellites)
         for(var i in body.satellites)
           updateBodyPos(body.satellites[i]);
-    }
-    updateBodyPos(system);
+    })(system);
 
     // move
     pos.add(vel);
@@ -141,24 +139,25 @@ function loop(t) {
 
   ctx.drawImage(background, -300*pos.x/100000000000 - 300, 300*pos.y/100000000000 - 300);
 
-  function drawBody(body) {
-    ctx.shadowColor = '#fff';
-    ctx.shadowBlur = body.r/10 / scale;
-    ctx.fillStyle = body.colour;
-    ctx.beginPath();
-    ctx.arc(
-      300 + (body.pos.x - pos.x)/scale,
-      300 - (body.pos.y - pos.y)/scale,
-      body.r/scale,
-      0, 2*Math.PI
-    );
-    ctx.fill();
+  (function drawBody(body) {
+    if(pos.to(body.pos).mag - body.r < 430 * scale) {
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = body.r/10 / scale;
+      ctx.fillStyle = body.colour;
+      ctx.beginPath();
+      ctx.arc(
+        300 + (body.pos.x - pos.x)/scale,
+        300 - (body.pos.y - pos.y)/scale,
+        body.r/scale,
+        0, 2*Math.PI
+      );
+      ctx.fill();
+    }
 
     if(body.satellites)
       for(var i in body.satellites)
         drawBody(body.satellites[i]);
-  }
-  drawBody(system);
+  })(system);
 
   ctx.shadowBlur = 0;
 

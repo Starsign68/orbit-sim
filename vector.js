@@ -39,6 +39,10 @@ Vec.prototype.sub = function sub(vector) {
   return this;
 }
 
+Vec.prototype.to = function to(vector) {
+  return new Vec(vector.x - this.x, vector.y -this.y);
+};
+
 Vec.prototype.scale = function scale(factor) {
   this.x *= factor;
   this.y *= factor;
@@ -49,9 +53,12 @@ Vec.prototype.negate = function negate() {
   return this.scale(-1);
 }
 
+var hypot = Math.hypot || function hypot(x,y) {
+  return Math.sqrt(x * x + y * y);
+}
 Object.defineProperty(Vec.prototype, 'mag', {
   get: function get() {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
+    return hypot(this.x, this.y);
   },
   set: function set(new_mag) {
     var old_mag = this.mag;
