@@ -24,18 +24,21 @@ var system = {
   ]
 };
 
+var GRAV = 6.674e-11;
+
 (function initialise_system(body) {
   body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
   if(body.satellites) {
     for(var i in body.satellites) {
       body.satellites[i].parent = body;
+      body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
       initialise_system(body.satellites[i]);
     }
   }
 })(system);
 
 var pos = new Vec(system.satellites[0].pos).add(new Vec(0,10000000));
-var vel = new Vec(100000,100000);
+var vel = new Vec(-7200,115000);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -48,7 +51,7 @@ var ctx=null;
 var background = generate_background(1200);
 
 var last_time = null;
-var phys_step = 1000/60;
+var phys_step = 1000/120;
 
 document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
@@ -88,27 +91,32 @@ function loop(t) {
   dt = Math.min(t - last_time, 5 * phys_step);
   last_time = t;
   while(dt > phys_step) {
+    var acc = new Vec();
     // thrust
     if(mouse.start) {
-      vel.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(5));
+      acc.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y));
     }
 
     (function updateBodyPos(body) {
-      body.M += 0.00001;
-      if(body.M > 2*Math.PI)
-        body.M -= 2*Math.PI;
-      body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+      if(body.parent) {
+        body.M += body.angular_vel * phys_step;
+        if(body.M > 2*Math.PI)
+          body.M -= 2*Math.PI;
+        body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+      }
 
       var displacement = pos.to(body.pos);
-      vel.add(displacement.set_mag(body.m/1e8/Math.pow(displacement.mag, 2)));
+      acc.add(displacement.set_mag(GRAV*body.m/(displacement.mag*displacement.mag)));
 
       if(body.satellites)
         for(var i in body.satellites)
           updateBodyPos(body.satellites[i]);
     })(system);
 
-    // move
-    pos.add(vel);
+    // move/integrate
+    var next_vel = new Vec(vel).add(acc.scale(phys_step));
+    pos.add(new Vec(vel).add(next_vel).scale(phys_step * 0.5));
+    vel = next_vel;
 
     debug_lines.pos = pos;
     debug_lines.vel = vel;
