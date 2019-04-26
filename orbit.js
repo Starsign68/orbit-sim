@@ -10,16 +10,74 @@ var mouse = {
 var system = {
   a: 0,
   M: 0,
-  r: 695700000,
+  r: 6.957e8,
   m: 2e30,
   colour: '#fffbe0',
   satellites: [
     {
-      a: 10000000000,
+      a: 5.79e10,
       M: 0,
-      r: 6000000,
-      m: 6e24,
-      colour: '#16825c'
+      r: 2.4e6,
+      m: 3.3e23,
+      colour: '#A7A7A3'
+    },
+    {
+      a: 1.08e11,
+      M: 0,
+      r: 6.1e6,
+      m: 4.87e24,
+      colour: '#BEAC66'
+    },
+    {
+      a: 1.5e11,
+      M: 0,
+      r: 6.4e6,
+      m: 5.97e24,
+      colour: '#2084EA',
+      satellites: [
+        {
+          a: 3.84e8,
+          M: 0,
+          r: 1.7e6,
+          m: 7.342e22,
+          colour: '#9A9997'
+        }
+      ]
+    },
+    {
+      a: 2.28e11,
+      M: 0,
+      r: 3.4e6,
+      m: 6.42e23,
+      colour: '#B3391D'
+    },
+    {
+      a: 7.78e11,
+      M: 0,
+      r: 7e7,
+      m: 1.9e27,
+      colour: '#C0A180'
+    },
+    {
+      a: 1.43e12,
+      M: 0,
+      r: 5.8e7,
+      m: 5.68e26,
+      colour: '#D1BA84'
+    },
+    {
+      a: 2.87e12,
+      M: 0,
+      r: 2.5e7,
+      m: 8.68e25,
+      colour: '#C9EFF0'
+    },
+    {
+      a: 4.5e12,
+      M: 0,
+      r: 2.5e7,
+      m: 1.02e26,
+      colour: '#346DF7'
     }
   ]
 };
@@ -28,17 +86,17 @@ var GRAV = 6.674e-11;
 
 (function initialise_system(body) {
   body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
-  if(body.satellites) {
-    for(var i in body.satellites) {
-      body.satellites[i].parent = body;
-      body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
-      initialise_system(body.satellites[i]);
-    }
+  if(body.parent)
+    body.pos.add(body.parent.pos);
+  for(var i in body.satellites) {
+    body.satellites[i].parent = body;
+    body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
+    initialise_system(body.satellites[i]);
   }
 })(system);
 
-var pos = new Vec(system.satellites[0].pos).add(new Vec(0,10000000));
-var vel = new Vec(-7200,115000);
+var pos = new Vec(0,10000000).add(system.satellites[2].pos);
+var vel = new Vec(-7200,30000);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -102,15 +160,14 @@ function loop(t) {
         body.M += body.angular_vel * phys_step;
         if(body.M > 2*Math.PI)
           body.M -= 2*Math.PI;
-        body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+        body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M)).add(body.parent.pos);
       }
 
       var displacement = pos.to(body.pos);
       acc.add(displacement.set_mag(GRAV*body.m/(displacement.mag*displacement.mag)));
 
-      if(body.satellites)
-        for(var i in body.satellites)
-          updateBodyPos(body.satellites[i]);
+      for(var i in body.satellites)
+        updateBodyPos(body.satellites[i]);
     })(system);
 
     // move/integrate
@@ -132,8 +189,8 @@ function loop(t) {
     mouse.scroll = 0;
   }
 
-  if(desired_scale > 100000000)
-    desired_scale = 100000000;
+  if(desired_scale > 20000000000)
+    desired_scale = 20000000000;
   else if(desired_scale < 10)
     desired_scale = 10;
 
@@ -149,7 +206,7 @@ function loop(t) {
 
   /** render time **/
 
-  ctx.drawImage(background, -300*pos.x/100000000000 - 300, 300*pos.y/100000000000 - 300);
+  ctx.drawImage(background, -300*pos.x/1e13 - 300, 300*pos.y/1e13 - 300);
 
   (function drawBody(body) {
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
@@ -166,9 +223,8 @@ function loop(t) {
       ctx.fill();
     }
 
-    if(body.satellites)
-      for(var i in body.satellites)
-        drawBody(body.satellites[i]);
+    for(var i in body.satellites)
+      drawBody(body.satellites[i]);
   })(system);
 
   ctx.shadowBlur = 0;
