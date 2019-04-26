@@ -152,7 +152,7 @@ function loop(t) {
     var acc = new Vec();
     // thrust
     if(mouse.start) {
-      acc.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y));
+      acc.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.5));
     }
 
     (function updateBodyPos(body) {
@@ -209,6 +209,22 @@ function loop(t) {
   ctx.drawImage(background, -300*pos.x/1e13 - 300, 300*pos.y/1e13 - 300);
 
   (function drawBody(body) {
+    // orbit
+    if(body.parent && body.a < 2000 * scale) {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = body.colour;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(
+        300 + (body.parent.pos.x - pos.x)/scale,
+        300 - (body.parent.pos.y - pos.y)/scale,
+        body.a/scale,
+        0, 2*Math.PI
+      );
+      ctx.stroke();
+    }
+
+    //body
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
       ctx.shadowColor = '#fff';
       ctx.shadowBlur = body.r/10 / scale;
