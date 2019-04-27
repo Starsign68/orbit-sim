@@ -71,6 +71,11 @@ Object.defineProperty(Vec.prototype, 'mag', {
     this.scale(new_mag/old_mag);
   }
 });
+Object.defineProperty(Vec.prototype, 'mag_squared', {
+  get: function get() {
+    return this.x*this.x + this.y*this.y;
+  }
+});
 
 // chainable
 Vec.prototype.set_mag = function set_mag(new_mag) {

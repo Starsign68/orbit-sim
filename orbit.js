@@ -9,27 +9,31 @@ var mouse = {
 
 var system = {
   a: 0,
-  M: 0,
+  omega: 0,
+  M: -2.78,
   r: 6.957e8,
   m: 2e30,
   colour: '#fffbe0',
   satellites: [
     {
       a: 5.79e10,
-      M: 0,
+      omega: 0.51,
+      M: -2.78,
       r: 2.4e6,
       m: 3.3e23,
       colour: '#A7A7A3'
     },
     {
       a: 1.08e11,
-      M: 0,
+      omega: 0.96,
+      M: -2.12,
       r: 6.1e6,
       m: 4.87e24,
       colour: '#BEAC66'
     },
     {
       a: 1.5e11,
+      omega: 1.8,
       M: 0,
       r: 6.4e6,
       m: 5.97e24,
@@ -37,7 +41,8 @@ var system = {
       satellites: [
         {
           a: 3.84e8,
-          M: 0,
+          omega: 1.36,
+          M: -2.6,
           r: 1.7e6,
           m: 7.342e22,
           colour: '#9A9997'
@@ -46,35 +51,40 @@ var system = {
     },
     {
       a: 2.28e11,
-      M: 0,
+      omega: 5.01,
+      M: -1.94,
       r: 3.4e6,
       m: 6.42e23,
       colour: '#B3391D'
     },
     {
       a: 7.78e11,
-      M: 0,
+      omega: 4.78,
+      M: -1.62,
       r: 7e7,
       m: 1.9e27,
       colour: '#C0A180'
     },
     {
       a: 1.43e12,
-      M: 0,
+      omega: 5.9,
+      M: -2.74,
       r: 5.8e7,
       m: 5.68e26,
       colour: '#D1BA84'
     },
     {
       a: 2.87e12,
-      M: 0,
+      omega: 1.73,
+      M: -2.35,
       r: 2.5e7,
       m: 8.68e25,
       colour: '#C9EFF0'
     },
     {
       a: 4.5e12,
-      M: 0,
+      omega: 4.31,
+      M: -0.54,
       r: 2.5e7,
       m: 1.02e26,
       colour: '#346DF7'
@@ -85,7 +95,7 @@ var system = {
 var GRAV = 6.674e-11;
 
 (function initialise_system(body) {
-  body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M));
+  body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega));
   if(body.parent)
     body.pos.add(body.parent.pos);
   for(var i in body.satellites) {
@@ -96,7 +106,7 @@ var GRAV = 6.674e-11;
 })(system);
 
 var pos = new Vec(0,10000000).add(system.satellites[2].pos);
-var vel = new Vec(-7200,30000);
+var vel = new Vec(-36000,-8000);
 
 var scale = 40000;
 var initial_scale = scale;
@@ -158,13 +168,13 @@ function loop(t) {
     (function updateBodyPos(body) {
       if(body.parent) {
         body.M += body.angular_vel * phys_step;
-        if(body.M > 2*Math.PI)
+        if(body.M > Math.PI)
           body.M -= 2*Math.PI;
-        body.pos = new Vec(body.a * Math.cos(body.M), body.a * Math.sin(body.M)).add(body.parent.pos);
+        body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega)).add(body.parent.pos);
       }
 
       var displacement = pos.to(body.pos);
-      acc.add(displacement.set_mag(GRAV*body.m/(displacement.mag*displacement.mag)));
+      acc.add(displacement.set_mag(GRAV*body.m/displacement.mag_squared));
 
       for(var i in body.satellites)
         updateBodyPos(body.satellites[i]);
@@ -182,17 +192,17 @@ function loop(t) {
   }
 
   if(mouse.scroll) {
-    zoom_end = t + 500;
     initial_scale = scale;
     desired_scale *= (mouse.scroll > 0) ? 1.6 : 0.625;
 
+    if(desired_scale > 20000000000)
+      desired_scale = 20000000000;
+    else if(desired_scale < 10)
+      desired_scale = 10;
+
+    zoom_end = t + 500;
     mouse.scroll = 0;
   }
-
-  if(desired_scale > 20000000000)
-    desired_scale = 20000000000;
-  else if(desired_scale < 10)
-    desired_scale = 10;
 
   if(zoom_end > t) {
     scale = desired_scale + (initial_scale - desired_scale)*(zoom_end-t)/500;
@@ -210,10 +220,11 @@ function loop(t) {
 
   (function drawBody(body) {
     // orbit
-    if(body.parent && body.a < 2000 * scale) {
+    if(body.parent && body.a < 10000 * scale) {
+      ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
       ctx.shadowBlur = 0;
       ctx.strokeStyle = body.colour;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(
         300 + (body.parent.pos.x - pos.x)/scale,
@@ -222,6 +233,7 @@ function loop(t) {
         0, 2*Math.PI
       );
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     //body
@@ -233,7 +245,7 @@ function loop(t) {
       ctx.arc(
         300 + (body.pos.x - pos.x)/scale,
         300 - (body.pos.y - pos.y)/scale,
-        body.r/scale,
+        Math.max(5, body.r/scale),
         0, 2*Math.PI
       );
       ctx.fill();
