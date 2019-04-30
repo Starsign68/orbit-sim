@@ -92,3 +92,17 @@ var system = {
     }
   ]
 };
+
+var GRAV = 6.674e-11;
+
+(function initialise_system(body) {
+  body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega));
+  if(body.parent)
+    body.pos.add(body.parent.pos);
+  for(var i in body.satellites) {
+    body.satellites[i].parent = body;
+    body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
+    body.satellites[i].SOI = body.satellites[i].a * Math.pow(body.satellites[i].m / body.m, 2/5);
+    initialise_system(body.satellites[i]);
+  }
+})(system);

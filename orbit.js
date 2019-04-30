@@ -7,20 +7,6 @@ var mouse = {
   scroll: 0
 };
 
-var GRAV = 6.674e-11;
-
-(function initialise_system(body) {
-  body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega));
-  if(body.parent)
-    body.pos.add(body.parent.pos);
-  for(var i in body.satellites) {
-    body.satellites[i].parent = body;
-    body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
-    body.satellites[i].SOI = body.satellites[i].a * Math.pow(body.satellites[i].m / body.m, 2/5);
-    initialise_system(body.satellites[i]);
-  }
-})(system);
-
 var pos = new Vec(0,10000000).add(system.satellites[2].pos);
 var vel = new Vec(-36000,-8000);
 
@@ -72,46 +58,45 @@ document.addEventListener('DOMContentLoaded',function() {
 });
 
 var dt = 0;
+var last_acc = new Vec();
 
 function loop(t) {
   dt = Math.min(t - last_time, 5 * phys_step);
   last_time = t;
   while(dt > phys_step) {
+    // velocity verlet the first
+    pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
     var acc = new Vec();
     // thrust
     if(mouse.start) {
-      acc.add(new Vec(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.5));
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.3);
     }
 
     var dominant = system;
 
     (function updateBody(body) {
-      var displacement = pos.to(body.pos);
-
       if(body.parent) {
         body.M += body.angular_vel * phys_step;
         if(body.M > Math.PI)
           body.M -= 2*Math.PI;
         body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega)).add(body.parent.pos);
-
-        if(dominant == body.parent && displacement.mag < body.SOI)
-          dominant = body;
       }
 
-      acc.add(displacement.set_mag(GRAV*body.m/displacement.mag_squared));
+      var displacement = pos.to(body.pos);
+      // velocity verlet the intermediate second
+      acc.add(new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared));
+
+      if(dominant == body.parent && displacement.mag < body.SOI)
+        dominant = body;
 
       for(var i in body.satellites)
         updateBody(body.satellites[i]);
     })(system);
     debug_lines.dominant = dominant.name;
 
-    // move/integrate
-    var next_vel = new Vec(vel).add(acc.scale(phys_step));
-    pos.add(new Vec(vel).add(next_vel).scale(phys_step * 0.5));
-    vel = next_vel;
-
-    debug_lines.pos = pos;
-    debug_lines.vel = vel;
+    // velocity verlet the third (and final)
+    vel.add(last_acc.add(acc).scale(phys_step/2));
+    last_acc = acc;
 
     dt -= phys_step;
   } // end physics
@@ -235,6 +220,8 @@ function generate_background(size) {
   ctx.fillStyle = '#000';
   ctx.fillRect(0,0,size,size);
 
+  ctx.globalAlpha = 0.8;
+
   for(var i = 0; i < Math.pow(size/16,2); i++) {
     var temp = 3500 + Math.floor(Math.random() * 8000);
 
@@ -243,7 +230,7 @@ function generate_background(size) {
     ctx.arc(
       Math.floor(Math.random() * size),
       Math.floor(Math.random() * size),
-      temp/15000 + 1,
+      temp/15000 + 0.5,
       0,2*Math.PI
     );
     ctx.fill();
