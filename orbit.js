@@ -7,23 +7,10 @@ var mouse = {
   scroll: 0
 };
 
-var pos = new Vec(0,10000000).add(system.satellites[2].pos);
-var vel = new Vec(-36000,-8000);
-
-var pos_trail = [];
-
-var scale = 40000;
-var initial_scale = scale;
-var desired_scale = scale;
-var zoom_end = null;
-
 var debug_output = null;
 var debug_lines = {};
 var ctx=null;
 var background = generate_background(1200);
-
-var last_time = null;
-var phys_step = 1000/120;
 
 document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
@@ -58,21 +45,35 @@ document.addEventListener('DOMContentLoaded',function() {
 });
 
 var dt = 0;
+var last_time = null;
+var frame_step = 1000/60;
+var phys_step = 30;
+
+var pos = new Vec(0,10000000).add(system.satellites[2].pos);
+var vel = new Vec(-36000,-8000);
 var last_acc = new Vec();
 
+var dominant = system;
+var pos_trail = [];
+
+var scale = 40000;
+var initial_scale = scale;
+var desired_scale = scale;
+var zoom_end = null;
+
 function loop(t) {
-  dt = Math.min(t - last_time, 5 * phys_step);
+  dt += Math.min(t - last_time, 5 * frame_step);
   last_time = t;
-  while(dt > phys_step) {
+  while(dt > frame_step) {
     // velocity verlet the first
     pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
     var acc = new Vec();
     // thrust
     if(mouse.start) {
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.3);
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.1);
     }
 
-    var dominant = system;
+    var dominant_search = system;
 
     (function updateBody(body) {
       if(body.parent) {
@@ -86,19 +87,20 @@ function loop(t) {
       // velocity verlet the intermediate second
       acc.add(new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared));
 
-      if(dominant == body.parent && displacement.mag < body.SOI)
-        dominant = body;
+      if(dominant_search == body.parent && displacement.mag < body.SOI)
+        dominant_search = body;
 
       for(var i in body.satellites)
         updateBody(body.satellites[i]);
     })(system);
+    dominant = dominant_search;
     debug_lines.dominant = dominant.name;
 
     // velocity verlet the third (and final)
     vel.add(last_acc.add(acc).scale(phys_step/2));
     last_acc = acc;
 
-    dt -= phys_step;
+    dt -= frame_step;
   } // end physics
 
   pos_trail.push({

@@ -1,3 +1,4 @@
+'use strict';
 var system = {
   name: 'Sun',
   a: 0,
