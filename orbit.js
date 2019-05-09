@@ -170,6 +170,9 @@ function loop(t) {
       ctx.globalAlpha = 1;
     }
 
+    for(var i in body.satellites)
+      drawBody(body.satellites[i]);
+
     //body
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
       ctx.shadowColor = '#fff';
@@ -184,9 +187,6 @@ function loop(t) {
       );
       ctx.fill();
     }
-
-    for(var i in body.satellites)
-      drawBody(body.satellites[i]);
   })(system);
 
   ctx.shadowBlur = 0;
