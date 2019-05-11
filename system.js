@@ -3,7 +3,7 @@ var system = {
   name: 'Sun',
   a: 0,
   omega: 0,
-  M: -2.78,
+  M: 0,
   r: 6.957e8,
   m: 2e30,
   colour: '#fffbe0',
@@ -97,9 +97,7 @@ var system = {
 var GRAV = 6.674e-11;
 
 (function initialise_system(body) {
-  body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega));
-  if(body.parent)
-    body.pos.add(body.parent.pos);
+  body.pos = get_body_pos(body);
   for(var i in body.satellites) {
     body.satellites[i].parent = body;
     body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
@@ -107,3 +105,15 @@ var GRAV = 6.674e-11;
     initialise_system(body.satellites[i]);
   }
 })(system);
+
+function get_body_pos(body) {
+  return (body.parent) ? new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega)).add(body.parent.pos) : new Vec(0,0);
+  // WARN: assumes parent pos has already been updated
+}
+
+function get_body_vel(body) {
+  return (body.parent) ? new Vec(-Math.sin(body.M+body.omega), Math.cos(body.M+body.omega))
+                          .set_mag(body.a * body.angular_vel)
+                          .add(get_body_vel(body.parent))
+                       : new Vec(0,0);
+}

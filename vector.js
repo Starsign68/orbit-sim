@@ -4,21 +4,22 @@ function Vec(x,y) {
 }
 
 Vec.prototype.set = function set(x,y) {
-  if(x == undefined) {
+  if(x === undefined) {
     x = 0;
     y = 0;
   }
-  else if(y == undefined) {
-    if('x' in x && 'y' in x) {
-      y = x.y;
-      x = x.x;
+  else if(y === undefined) {
+    y = 0;
+    if(typeof x === 'object') {
+      if('x' in x && 'y' in x) {
+        y = x.y;
+        x = x.x;
+      }
+      else if(0 in x && 1 in x) {
+        y = x[1];
+        x = x[0];
+      }
     }
-    else if(0 in x && 1 in x) {
-      y = x[1];
-      x = x[0];
-    }
-    else
-      y = 0;
   }
   
   this.x = x;

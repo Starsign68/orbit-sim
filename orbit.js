@@ -80,12 +80,16 @@ function loop(t) {
         body.M += body.angular_vel * phys_step;
         if(body.M > Math.PI)
           body.M -= 2*Math.PI;
-        body.pos = new Vec(body.a * Math.cos(body.M+body.omega), body.a * Math.sin(body.M+body.omega)).add(body.parent.pos);
+        body.pos = get_body_pos(body);
       }
 
       var displacement = pos.to(body.pos);
       // velocity verlet the intermediate second
       acc.add(new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared));
+      if(displacement.mag < body.r) {
+        pos.set(new Vec(body.pos).sub(new Vec(displacement).set_mag(body.r)));
+        vel.set(get_body_vel(body));
+      }
 
       if(dominant_search == body.parent && displacement.mag < body.SOI)
         dominant_search = body;
