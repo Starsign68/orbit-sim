@@ -118,10 +118,10 @@ function loop(t) {
     initial_scale = scale;
     desired_scale *= (mouse.scroll > 0) ? 1.6 : 0.625;
 
-    if(desired_scale > 20000000000)
-      desired_scale = 20000000000;
-    else if(desired_scale < 10)
-      desired_scale = 10;
+    if(desired_scale > 2.0769e10) // 40000 * 1.6**28
+      desired_scale = 2.0769e10;
+    else if(desired_scale < 8.4703) // 40000 * 1.6**-18
+      desired_scale = 8.4703;
 
     zoom_end = t + 500;
     mouse.scroll = 0;
