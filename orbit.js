@@ -179,22 +179,30 @@ function loop(t) {
 
     //body
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
-      if(body.parent) {
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.arc(
-          300 + (body.pos.x - pos.x)/scale,
-          300 - (body.pos.y - pos.y)/scale,
-          Math.max(5, body.r/scale),
-          0, 2*Math.PI
-        );
-        ctx.fill();
+      var angle_start = 0;
+      var angle_end = 2*Math.PI;
+      ctx.shadowBlur = 0;
+      
+      if(body.r > scale) {
+        // extra detail
+        if(body.parent) {
+          ctx.fillStyle = '#000';
+          ctx.beginPath();
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            Math.max(5, body.r/scale),
+            0, 2*Math.PI
+          );
+          ctx.fill();
+
+          var angle_start = Math.PI/2 - body.pos.arg;
+          var angle_end = angle_start+Math.PI;
+        }
+        ctx.shadowBlur = 0.1*body.r/scale;
       }
 
-      var angle_start = Math.PI/2 - body.pos.arg;
-      var angle_end = (body.parent) ? angle_start+Math.PI : angle_start+2*Math.PI;
       ctx.shadowColor = '#fff';
-      ctx.shadowBlur = body.r/10 / scale;
       ctx.fillStyle = body.colour;
       ctx.beginPath();
       ctx.arc(
