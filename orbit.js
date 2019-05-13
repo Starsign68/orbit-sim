@@ -49,8 +49,9 @@ var last_time = null;
 var frame_step = 1000/60;
 var phys_step = 30;
 
-var pos = new Vec(0,10000000).add(system.satellites[2].pos);
-var vel = new Vec(-36000,-8000);
+var home = system.satellites[2];
+var pos = new Vec(0,home.r * 1.1).add(home.pos);
+var vel = new Vec(-Math.sqrt(GRAV*home.m/(home.r * 1.1)),0).add(get_body_vel(home));
 var last_acc = new Vec();
 
 var dominant = system;
@@ -160,7 +161,6 @@ function loop(t) {
     // orbit
     if(body.parent && body.a < 10000 * scale) {
       ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
-      ctx.shadowBlur = 0;
       ctx.strokeStyle = body.colour;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -179,6 +179,20 @@ function loop(t) {
 
     //body
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
+      if(body.parent) {
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          Math.max(5, body.r/scale),
+          0, 2*Math.PI
+        );
+        ctx.fill();
+      }
+
+      var angle_start = Math.PI/2 - body.pos.arg;
+      var angle_end = (body.parent) ? angle_start+Math.PI : angle_start+2*Math.PI;
       ctx.shadowColor = '#fff';
       ctx.shadowBlur = body.r/10 / scale;
       ctx.fillStyle = body.colour;
@@ -187,7 +201,7 @@ function loop(t) {
         300 + (body.pos.x - pos.x)/scale,
         300 - (body.pos.y - pos.y)/scale,
         Math.max(5, body.r/scale),
-        0, 2*Math.PI
+        angle_start, angle_end
       );
       ctx.fill();
     }
