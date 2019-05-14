@@ -174,7 +174,10 @@ function loop(t) {
 
   (function drawBody(body) {
     // orbit
-    if(body.parent && body.a < 10000 * scale) {
+    if(body.parent
+      && body.a < 10000 * scale
+      && pos.to(body.parent.pos).mag - body.a < 430 * scale
+    ) {
       ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
       ctx.strokeStyle = body.colour;
       ctx.lineWidth = 1;
@@ -229,7 +232,8 @@ function loop(t) {
           ctx.fill();
           ctx.globalAlpha = 1;
         }
-        ctx.shadowBlur = 0.1*body.r/scale;
+        if(body.atmos)
+          ctx.shadowBlur = 0.1*body.r/scale;
       }
 
       ctx.shadowColor = '#fff';
