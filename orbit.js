@@ -52,7 +52,7 @@ document.addEventListener('keydown',function(e) {
 var dt = 0;
 var last_time = null;
 var frame_step = 1000/60;
-var phys_step = 30;
+var phys_step = 20;
 
 var pos = new Vec();
 var vel = new Vec();
@@ -88,6 +88,7 @@ function loop(t) {
     }
 
     var dominant_search = system;
+    var dominant_accel = null;
 
     (function updateBody(body) {
       if(body.parent) {
@@ -98,15 +99,22 @@ function loop(t) {
       }
 
       var displacement = pos.to(body.pos);
+      var acceleration = new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared);
+
       // velocity verlet the intermediate second
-      acc.add(new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared));
+      acc.add(acceleration);
+
       if(displacement.mag < body.r) {
         pos.set(new Vec(body.pos).sub(new Vec(displacement).set_mag(body.r)));
         vel.set(get_body_vel(body));
       }
 
-      if(dominant_search == body.parent && displacement.mag < body.SOI)
+      if(dominant_search == body.parent && displacement.mag < body.SOI) {
         dominant_search = body;
+      }
+      if(body == dominant_search) {
+        dominant_accel = acceleration;
+      }
 
       for(var i in body.satellites)
         updateBody(body.satellites[i]);
@@ -118,6 +126,15 @@ function loop(t) {
     vel.add(last_acc.add(acc).scale(phys_step/2));
     last_acc = acc;
 
+    var target_step = Math.max(1, 0.02 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
+
+    if(target_step < phys_step)
+      phys_step = target_step;
+    else
+      phys_step += (target_step - phys_step)/400;
+
+    debug_lines.target = target_step;
+    debug_lines.step = phys_step;
     dt -= frame_step;
   } // end physics
 
