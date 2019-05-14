@@ -43,16 +43,29 @@ document.addEventListener('DOMContentLoaded',function() {
     requestAnimationFrame(loop);
   });
 });
+document.addEventListener('keydown',function(e) {
+  debug_lines.key = e.key;
+  if(e.key == 'Home')
+    orbit_around(system.satellites[2]);
+});
 
 var dt = 0;
 var last_time = null;
 var frame_step = 1000/60;
 var phys_step = 30;
 
-var home = system.satellites[2];
-var pos = new Vec(0,home.r * 1.1).add(home.pos);
-var vel = new Vec(-Math.sqrt(GRAV*home.m/(home.r * 1.1)),0).add(get_body_vel(home));
+var pos = new Vec();
+var vel = new Vec();
 var last_acc = new Vec();
+
+function orbit_around(body, distance) {
+  if(distance == undefined)
+    distance = 0.2;
+  pos.set(0,body.r * (1+distance)).add(body.pos);
+  vel.set(-Math.sqrt(GRAV*body.m/(body.r * (1+distance))),0).add(get_body_vel(body));
+  last_acc.set(0,0);
+}
+orbit_around(system.satellites[2]);
 
 var dominant = system;
 var pos_trail = [];
@@ -142,7 +155,8 @@ function loop(t) {
 
   ctx.drawImage(background, -300*pos.x/1e13 - 300, 300*pos.y/1e13 - 300);
 
-  ctx.strokeStyle = '#deca';
+  ctx.strokeStyle = '#dec';
+  ctx.globalAlpha = 0.6;
   ctx.lineWidth = '2';
   ctx.beginPath();
   ctx.moveTo(
@@ -156,6 +170,7 @@ function loop(t) {
     );
   }
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   (function drawBody(body) {
     // orbit
@@ -185,19 +200,34 @@ function loop(t) {
       
       if(body.r > scale) {
         // extra detail
-        if(body.parent) {
+        if(body != system) {
+          // draw shadow
+          var angle_start = Math.PI/2 - body.pos.arg;
+          var angle_end = angle_start+Math.PI;
+
+          if(body.r < scale * 5) {
+            ctx.fillStyle = body.colour;
+            ctx.beginPath();
+            ctx.arc(
+              300 + (body.pos.x - pos.x)/scale,
+              300 - (body.pos.y - pos.y)/scale,
+              5,
+              angle_start, angle_end, true
+            );
+            ctx.fill();
+            ctx.globalAlpha = (body.r/scale - 1)/4;
+          }
+
           ctx.fillStyle = '#000';
           ctx.beginPath();
           ctx.arc(
             300 + (body.pos.x - pos.x)/scale,
             300 - (body.pos.y - pos.y)/scale,
             Math.max(5, body.r/scale),
-            0, 2*Math.PI
+            angle_start, angle_end, true
           );
           ctx.fill();
-
-          var angle_start = Math.PI/2 - body.pos.arg;
-          var angle_end = angle_start+Math.PI;
+          ctx.globalAlpha = 1;
         }
         ctx.shadowBlur = 0.1*body.r/scale;
       }
