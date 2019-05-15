@@ -84,7 +84,7 @@ function loop(t) {
     var acc = new Vec();
     // thrust
     if(mouse.start) {
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(0.1);
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/phys_step);
     }
 
     var dominant_search = system;
@@ -131,7 +131,7 @@ function loop(t) {
     if(target_step < phys_step)
       phys_step = target_step;
     else
-      phys_step += (target_step - phys_step)/400;
+      phys_step += Math.min(200, (target_step - phys_step)/100);
 
     debug_lines.target = target_step;
     debug_lines.step = phys_step;
