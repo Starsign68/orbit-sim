@@ -6,6 +6,7 @@ var mouse = {
   start: null,
   scroll: 0
 };
+var keyboard = {prev:{}};
 
 var debug_output = null;
 var debug_lines = {};
@@ -25,8 +26,9 @@ document.addEventListener('DOMContentLoaded',function() {
   });
 
   function mouseEvent(e) {
-    mouse.x = e.offsetX;
-    mouse.y = e.offsetY;
+    var bounds = canvas.getBoundingClientRect();
+    mouse.x = (e.clientX - bounds.left) * canvas.width  / canvas.clientWidth;
+    mouse.y = (e.clientY - bounds.top ) * canvas.height / canvas.clientHeight;
     mouse.buttons = e.buttons;
 
     if(!(mouse.buttons & 1))
@@ -45,8 +47,10 @@ document.addEventListener('DOMContentLoaded',function() {
 });
 document.addEventListener('keydown',function(e) {
   debug_lines.key = e.key;
-  if(e.key == 'Home')
-    orbit_around(system.satellites[2]);
+  keyboard[e.key] = true;
+});
+document.addEventListener('keyup', function(e) {
+  keyboard[e.key] = false;
 });
 
 var dt = 0;
@@ -78,10 +82,20 @@ var zoom_end = null;
 function loop(t) {
   dt += Math.min(t - last_time, 5 * frame_step);
   last_time = t;
+
+  if(keyboard.Home && !keyboard.prev.Home) {
+    orbit_around(system.satellites[2]);
+    pos_trail.push({
+      parent: {pos:{x:0,y:0}},
+      offset: {x:0,y:0}
+    }); // garbage position to split the trail
+  }
+
   while(dt > frame_step) {
     // velocity verlet the first
     pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
     var acc = new Vec();
+
     // thrust
     if(mouse.start) {
       acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/phys_step);
@@ -119,6 +133,7 @@ function loop(t) {
       for(var i in body.satellites)
         updateBody(body.satellites[i]);
     })(system);
+
     dominant = dominant_search;
     debug_lines.dominant = dominant.name;
 
@@ -126,14 +141,12 @@ function loop(t) {
     vel.add(last_acc.add(acc).scale(phys_step/2));
     last_acc = acc;
 
-    var target_step = Math.max(1, 0.02 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
+    var max_step = Math.max(0.01953125, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
 
-    if(target_step < phys_step)
-      phys_step = target_step;
-    else
-      phys_step += Math.min(200, (target_step - phys_step)/100);
+    if(max_step < phys_step)
+      phys_step = 20*Math.pow(2, Math.floor(Math.log(max_step/20)/Math.LN2));
 
-    debug_lines.target = target_step;
+    debug_lines.max = max_step;
     debug_lines.step = phys_step;
     dt -= frame_step;
   } // end physics
@@ -148,25 +161,39 @@ function loop(t) {
   if(mouse.scroll) {
     initial_scale = scale;
     desired_scale *= (mouse.scroll > 0) ? 1.6 : 0.625;
-
-    if(desired_scale > 2.0769e10) // 40000 * 1.6**28
-      desired_scale = 2.0769e10;
-    else if(desired_scale < 8.4703) // 40000 * 1.6**-18
-      desired_scale = 8.4703;
-
     zoom_end = t + 500;
-    mouse.scroll = 0;
   }
 
-  if(zoom_end > t) {
-    scale = desired_scale + (initial_scale - desired_scale)*(zoom_end-t)/500;
-  }
-  else {
-    scale = desired_scale;
-    zoom_end = null;
+  if(keyboard.ArrowLeft && !keyboard.prev.ArrowLeft)
+    phys_step /= 2;
+  if(keyboard.ArrowRight && !keyboard.prev.ArrowRight)
+    phys_step *= 2;
+
+  if(keyboard.ArrowDown)
+    desired_scale *= 1.05;
+  if(keyboard.ArrowUp)
+    desired_scale /= 1.05;
+
+  if(desired_scale > 2.0769e10) // 40000 * 1.6**28
+    desired_scale = 2.0769e10;
+  else if(desired_scale < 8.4703) // 40000 * 1.6**-18
+    desired_scale = 8.4703;
+
+  if(desired_scale != scale) {
+    if(zoom_end > t) {
+      scale = desired_scale + (initial_scale - desired_scale)*(zoom_end-t)/500;
+    }
+    else {
+      scale = desired_scale;
+      zoom_end = null;
+    }
   }
 
   debug_lines.scale = scale;
+
+  mouse.scroll = 0;
+  delete keyboard.prev;
+  keyboard.prev = Object.assign({}, keyboard);
 
   /** render time **/
 
@@ -175,16 +202,27 @@ function loop(t) {
   ctx.strokeStyle = '#dec';
   ctx.globalAlpha = 0.6;
   ctx.lineWidth = '2';
+
+  var trail_parent = pos_trail[0].parent;
   ctx.beginPath();
   ctx.moveTo(
-    300 + (pos_trail[0].parent.pos.x + pos_trail[0].offset.x - pos.x)/scale,
-    300 - (pos_trail[0].parent.pos.y + pos_trail[0].offset.y - pos.y)/scale
+    300 + (trail_parent.pos.x + pos_trail[0].offset.x - pos.x)/scale,
+    300 - (trail_parent.pos.y + pos_trail[0].offset.y - pos.y)/scale
   );
   for(var i = 1; i < pos_trail.length; i++) {
-    ctx.lineTo(
-      300 + (pos_trail[i].parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
-      300 - (pos_trail[i].parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
-    );
+    if(pos_trail[i].parent == trail_parent) {
+      ctx.lineTo(
+        300 + (trail_parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
+        300 - (trail_parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
+      );
+    }
+    else {
+      trail_parent = pos_trail[i].parent
+      ctx.moveTo(
+        300 + (trail_parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
+        300 - (trail_parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
+      );
+    }
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
