@@ -57,6 +57,7 @@ var dt = 0;
 var last_time = null;
 var frame_step = 1000/60;
 var phys_step = 20;
+var min_step = 0.01953125;
 
 var pos = new Vec();
 var vel = new Vec();
@@ -141,7 +142,7 @@ function loop(t) {
     vel.add(last_acc.add(acc).scale(phys_step/2));
     last_acc = acc;
 
-    var max_step = Math.max(0.01953125, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
+    var max_step = Math.max(min_step, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
 
     if(max_step < phys_step)
       phys_step = 20*Math.pow(2, Math.floor(Math.log(max_step/20)/Math.LN2));
@@ -168,6 +169,8 @@ function loop(t) {
     phys_step /= 2;
   if(keyboard.ArrowRight && !keyboard.prev.ArrowRight)
     phys_step *= 2;
+  if(phys_step < min_step)
+    phys_step = min_step;
 
   if(keyboard.ArrowDown)
     desired_scale *= 1.05;
