@@ -46,11 +46,19 @@ document.addEventListener('DOMContentLoaded',function() {
   });
 });
 document.addEventListener('keydown',function(e) {
-  debug_lines.key = e.key;
-  keyboard[e.key] = true;
+  var key = e.key;
+  if(['Down','Left','Right','Up'].indexOf(key) != -1) {
+    e.preventDefault();
+    key = 'Arrow'+key; // standard name
+  }
+  debug_lines.key = key;
+  keyboard[key] = true;
 });
 document.addEventListener('keyup', function(e) {
-  keyboard[e.key] = false;
+  var key = e.key;
+  if(['Down','Left','Right','Up'].indexOf(e.key) != -1)
+    key = 'Arrow'+key;
+  keyboard[key] = false;
 });
 
 var dt = 0;
@@ -195,8 +203,13 @@ function loop(t) {
   debug_lines.scale = scale;
 
   mouse.scroll = 0;
-  delete keyboard.prev;
-  keyboard.prev = Object.assign({}, keyboard);
+
+  keyboard.prev = {}
+  for(var key in keyboard) {
+    if(key == 'prev')
+      continue;
+    keyboard.prev[key] = keyboard[key];
+  }
 
   /** render time **/
 
