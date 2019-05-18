@@ -63,9 +63,11 @@ document.addEventListener('keyup', function(e) {
 
 var dt = 0;
 var last_time = null;
+
 var frame_step = 1000/60;
 var phys_step = frame_step * 512/1000;
-
+var desired_step = phys_step;
+var max_step = phys_step;
 var time_announcement = null;
 
 var pos = new Vec();
@@ -88,8 +90,8 @@ function orbit_around(body, distance) {
     offset: {x:0,y:0}
   }); // garbage position to split the trail
 
-  if(phys_step > frame_step * 512/1000)
-    phys_step = frame_step * 512/1000;
+  if(max_step > frame_step * 512/1000)
+    max_step = frame_step * 512/1000;
 }
 orbit_around(system.satellites[2]);
 
@@ -106,15 +108,15 @@ function loop(t) {
     orbit_around(system.satellites[2]);
 
   if(keyboard.ArrowLeft && !keyboard.prev.ArrowLeft) {
-    phys_step /= 2;
+    desired_step = phys_step / 2;
     time_announcement = t + 2000;
   }
   if(keyboard.ArrowRight && !keyboard.prev.ArrowRight) {
-    phys_step *= 2;
+    desired_step = phys_step * 2;
     time_announcement = t + 2000;
   }
-  if(phys_step < frame_step/1000)
-    phys_step = frame_step/1000;
+  if(desired_step > frame_step/1000 * 16777216)
+    desired_step = frame_step/1000 * 16777216;
 
   while(dt > frame_step) {
     var last_acc = acc;
@@ -122,17 +124,31 @@ function loop(t) {
 
     // thrust
     if(mouse.start) {
-      if(phys_step > frame_step/1000 * 8) {
-        phys_step = frame_step/1000 * 8;
-        time_announcement = t + 2000;
-      }
+      max_step = 1/6;
       acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y);
     }
+
+    debug_lines.max = max_step;
+    debug_lines.desired = desired_step;
+
+    var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
+
+    if(desired_step < max_step && phys_step != desired_step) {
+      phys_step = desired_step
+      time_announcement = t + 2000;
+    }
+    else if(phys_step > max_step || (desired_step > max_step && phys_step < max_attainable)) {
+      phys_step = max_attainable;
+      time_announcement = t + 2000;
+    }
+
+    if(phys_step < frame_step/1000)
+      phys_step = frame_step/1000;
 
     // velocity verlet the first: x += v*dt + 1/2 a*dt^2
     pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
 
-    var dominant_search = system;
+    var dominant_candidate = system;
     var dominant_accel = null;
 
     (function updateBody(body) {
@@ -154,10 +170,10 @@ function loop(t) {
         vel.set(get_body_vel(body));
       }
 
-      if(dominant_search == body.parent && displacement.mag < body.SOI) {
-        dominant_search = body;
+      if(dominant_candidate == body.parent && displacement.mag < body.SOI) {
+        dominant_candidate = body;
       }
-      if(body == dominant_search) {
+      if(body == dominant_candidate) {
         dominant_accel = acceleration;
       }
 
@@ -165,21 +181,13 @@ function loop(t) {
         updateBody(body.satellites[i]);
     })(system);
 
-    dominant = dominant_search;
+    dominant = dominant_candidate;
     debug_lines.dominant = dominant.name;
 
     // velocity verlet the third (and final): v += (a(t) + a(t+dt))*dt/2
     vel.add(last_acc.add(acc).scale(phys_step/2));
 
-    var max_step = Math.max(frame_step/1000, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
-
-    if(max_step < phys_step) {
-      phys_step = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
-      time_announcement = t + 2000;
-    }
-
-    debug_lines.max = max_step;
-    debug_lines.step = phys_step;
+    max_step = Math.max(frame_step/1000, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
 
     dt -= frame_step;
   } // end physics
@@ -230,7 +238,18 @@ function loop(t) {
 
   /** render time **/
 
-  ctx.drawImage(background, -300*pos.x/1e13 - 300, 300*pos.y/1e13 - 300);
+  var back_x = 300 + 300*pos.x/1e13;
+  if(back_x < 0)
+    back_x = 0;
+  else if(back_x > 600)
+    back_x = 600;
+
+  var back_y = 300 - 300*pos.y/1e13;
+  if(back_y < 0)
+    back_y = 0;
+  else if(back_y > 600)
+    back_y = 600;
+  ctx.drawImage(background, back_x, back_y, 600, 600, 0, 0, 600, 600);
 
   ctx.strokeStyle = '#dec';
   ctx.globalAlpha = 0.6;
@@ -353,16 +372,6 @@ function loop(t) {
   ctx.arc(300,300,5,0,2*Math.PI);
   ctx.fill();
 
-  if(Math.abs(pos.x) > 1e13 || Math.abs(pos.y) > 1e13) {
-    phys_step = frame_step/1000;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#EB5E42';
-    ctx.font = '24px monospace';
-
-    ctx.fillText("You've escaped, never to return!", 300, 500);
-    ctx.fillText("Press 'Home' to reset", 300, 550);
-  }
-
   if(time_announcement > t) {
     ctx.globalAlpha = Math.min(1, (time_announcement-t)/1000);
     ctx.textAlign = 'center';
@@ -375,6 +384,15 @@ function loop(t) {
   }
   else
     time_announcement = null;
+
+  if(Math.abs(pos.x) > 1e13 || Math.abs(pos.y) > 1e13) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#EB5E42';
+    ctx.font = '24px monospace';
+
+    ctx.fillText("You've escaped, never to return!", 300, 500);
+    ctx.fillText("Press 'Home' to reset", 300, 550);
+  }
 
   d.innerText = '';
   for(var name in debug_lines) {
