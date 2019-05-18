@@ -353,6 +353,16 @@ function loop(t) {
   ctx.arc(300,300,5,0,2*Math.PI);
   ctx.fill();
 
+  if(Math.abs(pos.x) > 1e13 || Math.abs(pos.y) > 1e13) {
+    phys_step = frame_step/1000;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#EB5E42';
+    ctx.font = '24px monospace';
+
+    ctx.fillText("You've escaped, never to return!", 300, 500);
+    ctx.fillText("Press 'Home' to reset", 300, 550);
+  }
+
   if(time_announcement > t) {
     ctx.globalAlpha = Math.min(1, (time_announcement-t)/1000);
     ctx.textAlign = 'center';
