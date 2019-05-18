@@ -47,10 +47,10 @@ document.addEventListener('DOMContentLoaded',function() {
 });
 document.addEventListener('keydown',function(e) {
   var key = e.key;
-  if(['Down','Left','Right','Up'].indexOf(key) != -1) {
-    e.preventDefault();
+  if(['Down','Left','Right','Up'].indexOf(key) != -1)
     key = 'Arrow'+key; // standard name
-  }
+  if(['ArrowDown','ArrowLeft','ArrowRight','ArrowUp'].indexOf(key) != -1)
+    e.preventDefault();
   debug_lines.key = key;
   keyboard[key] = true;
 });
@@ -64,24 +64,34 @@ document.addEventListener('keyup', function(e) {
 var dt = 0;
 var last_time = null;
 var frame_step = 1000/60;
-var phys_step = 20;
-var min_step = 0.01953125;
+var phys_step = frame_step * 512/1000;
+
+var time_announcement = null;
 
 var pos = new Vec();
 var vel = new Vec();
-var last_acc = new Vec();
+var acc = new Vec();
+
+var dominant = system;
+var pos_trail = [];
 
 function orbit_around(body, distance) {
   if(distance == undefined)
     distance = 0.2;
+
   pos.set(0,body.r * (1+distance)).add(body.pos);
   vel.set(-Math.sqrt(GRAV*body.m/(body.r * (1+distance))),0).add(get_body_vel(body));
-  last_acc.set(0,0);
+  acc.set(0);
+
+  pos_trail.push({
+    parent: {pos:{x:0,y:0}},
+    offset: {x:0,y:0}
+  }); // garbage position to split the trail
+
+  if(phys_step > frame_step * 512/1000)
+    phys_step = frame_step * 512/1000;
 }
 orbit_around(system.satellites[2]);
-
-var dominant = system;
-var pos_trail = [];
 
 var scale = 40000;
 var initial_scale = scale;
@@ -92,23 +102,35 @@ function loop(t) {
   dt += Math.min(t - last_time, 5 * frame_step);
   last_time = t;
 
-  if(keyboard.Home && !keyboard.prev.Home) {
+  if(keyboard.Home && !keyboard.prev.Home)
     orbit_around(system.satellites[2]);
-    pos_trail.push({
-      parent: {pos:{x:0,y:0}},
-      offset: {x:0,y:0}
-    }); // garbage position to split the trail
+
+  if(keyboard.ArrowLeft && !keyboard.prev.ArrowLeft) {
+    phys_step /= 2;
+    time_announcement = t + 2000;
   }
+  if(keyboard.ArrowRight && !keyboard.prev.ArrowRight) {
+    phys_step *= 2;
+    time_announcement = t + 2000;
+  }
+  if(phys_step < frame_step/1000)
+    phys_step = frame_step/1000;
 
   while(dt > frame_step) {
-    // velocity verlet the first
-    pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
-    var acc = new Vec();
+    var last_acc = acc;
+    acc = new Vec();
 
     // thrust
     if(mouse.start) {
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/phys_step);
+      if(phys_step > frame_step/1000 * 8) {
+        phys_step = frame_step/1000 * 8;
+        time_announcement = t + 2000;
+      }
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y);
     }
+
+    // velocity verlet the first: x += v*dt + 1/2 a*dt^2
+    pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
 
     var dominant_search = system;
     var dominant_accel = null;
@@ -124,7 +146,7 @@ function loop(t) {
       var displacement = pos.to(body.pos);
       var acceleration = new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared);
 
-      // velocity verlet the intermediate second
+      // velocity verlet the second
       acc.add(acceleration);
 
       if(displacement.mag < body.r) {
@@ -146,17 +168,19 @@ function loop(t) {
     dominant = dominant_search;
     debug_lines.dominant = dominant.name;
 
-    // velocity verlet the third (and final)
+    // velocity verlet the third (and final): v += (a(t) + a(t+dt))*dt/2
     vel.add(last_acc.add(acc).scale(phys_step/2));
-    last_acc = acc;
 
-    var max_step = Math.max(min_step, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
+    var max_step = Math.max(frame_step/1000, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
 
-    if(max_step < phys_step)
-      phys_step = 20*Math.pow(2, Math.floor(Math.log(max_step/20)/Math.LN2));
+    if(max_step < phys_step) {
+      phys_step = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
+      time_announcement = t + 2000;
+    }
 
     debug_lines.max = max_step;
     debug_lines.step = phys_step;
+
     dt -= frame_step;
   } // end physics
 
@@ -172,13 +196,6 @@ function loop(t) {
     desired_scale *= (mouse.scroll > 0) ? 1.6 : 0.625;
     zoom_end = t + 500;
   }
-
-  if(keyboard.ArrowLeft && !keyboard.prev.ArrowLeft)
-    phys_step /= 2;
-  if(keyboard.ArrowRight && !keyboard.prev.ArrowRight)
-    phys_step *= 2;
-  if(phys_step < min_step)
-    phys_step = min_step;
 
   if(keyboard.ArrowDown)
     desired_scale *= 1.05;
@@ -335,6 +352,19 @@ function loop(t) {
   ctx.beginPath();
   ctx.arc(300,300,5,0,2*Math.PI);
   ctx.fill();
+
+  if(time_announcement > t) {
+    ctx.globalAlpha = Math.min(1, (time_announcement-t)/1000);
+    ctx.textAlign = 'center';
+    ctx.font = '24px monospace';
+    ctx.fillStyle = '#35ea9c';
+
+    ctx.fillText('Time rate: \u00D7' + 1000*phys_step/frame_step, 300, 50);
+
+    ctx.globalAlpha = 1;
+  }
+  else
+    time_announcement = null;
 
   d.innerText = '';
   for(var name in debug_lines) {
