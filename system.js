@@ -5,6 +5,7 @@ var system = {
   a: 0,
   r: 6.957e8,
   m: 2e30,
+  SOI: 1e13,
   colour: '#fffbe0',
   atmos: true,
   satellites: [

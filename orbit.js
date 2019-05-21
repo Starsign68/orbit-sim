@@ -74,7 +74,13 @@ var pos = new Vec();
 var vel = new Vec();
 var acc = new Vec();
 
-var dominant = system;
+var dominant = {
+  body: system,
+  pos: new Vec(),
+  vel: new Vec(),
+  acc: new Vec()
+};
+var emphasise_prediction = null;
 var pos_trail = [];
 
 function orbit_around(body, distance) {
@@ -115,8 +121,6 @@ function loop(t) {
     desired_step = phys_step * 2;
     time_announcement = t + 2000;
   }
-  if(desired_step > frame_step/1000 * 16777216)
-    desired_step = frame_step/1000 * 16777216;
 
   while(dt > frame_step) {
     var last_acc = acc;
@@ -124,17 +128,22 @@ function loop(t) {
 
     // thrust
     if(mouse.start) {
+      emphasise_prediction = t + 1500;
       max_step = 1/6;
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y);
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/20); // maximum approx. 40ms-2
     }
 
     debug_lines.max = max_step;
     debug_lines.desired = desired_step;
+    debug_lines.step = phys_step;
 
     var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
 
-    if(desired_step < max_step && phys_step != desired_step) {
-      phys_step = desired_step
+    if(desired_step <= max_step && phys_step != desired_step) {
+      if(phys_step < desired_step)
+        phys_step *= 2;
+      else
+        phys_step = desired_step;
       time_announcement = t + 2000;
     }
     else if(phys_step > max_step || (desired_step > max_step && phys_step < max_attainable)) {
@@ -149,7 +158,6 @@ function loop(t) {
     pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
 
     var dominant_candidate = system;
-    var dominant_accel = null;
 
     (function updateBody(body) {
       if(body.parent) {
@@ -174,27 +182,33 @@ function loop(t) {
         dominant_candidate = body;
       }
       if(body == dominant_candidate) {
-        dominant_accel = acceleration;
+        dominant.pos = displacement.negate();
+        dominant.acc = acceleration;
       }
 
       for(var i in body.satellites)
         updateBody(body.satellites[i]);
     })(system);
 
-    dominant = dominant_candidate;
-    debug_lines.dominant = dominant.name;
+    dominant.body = dominant_candidate;
+    dominant.vel = get_body_vel(dominant.body).sub(vel).negate();
+    debug_lines.dominant = dominant.body.name;
 
     // velocity verlet the third (and final): v += (a(t) + a(t+dt))*dt/2
     vel.add(last_acc.add(acc).scale(phys_step/2));
 
-    max_step = Math.max(frame_step/1000, 0.01 * get_body_vel(dominant).sub(vel).mag/dominant_accel.mag);
+    max_step = 0.01 * dominant.vel.mag/dominant.acc.mag;
+    if(max_step < frame_step/1000)
+      max_step = frame_step/1000;
+    else if(max_step > frame_step/1000 * 33554432)
+      max_step = frame_step/1000 * 33554432;
 
     dt -= frame_step;
   } // end physics
 
   pos_trail.push({
-    parent: dominant,
-    offset: dominant.pos.to(pos)
+    parent: dominant.body,
+    offset: dominant.pos
   });
   if(pos_trail.length > 2048)
     pos_trail.shift();
@@ -358,7 +372,41 @@ function loop(t) {
 
   ctx.shadowBlur = 0;
 
+  // patched conic prediction
+  var h = dominant.pos.mag * dominant.vel.mag * Math.sin(dominant.vel.arg - dominant.pos.arg); // specific relative angular momentum; <0 = clockwise
+  var p = h * h / (GRAV * dominant.body.m); // semi-latus rectum
+  // eccentricity vector:
+  var eccentricity_angle = dominant.vel.arg + ((h >= 0) ? -Math.PI/2 : Math.PI/2);
+  var e = dominant.vel.mag * Math.abs(h) / (GRAV * dominant.body.m);
+  e = new Vec(e * Math.cos(eccentricity_angle), e * Math.sin(eccentricity_angle)).sub(new Vec(dominant.pos).normalise());
+
+  var max_angle = (e.mag < 1) ? Math.PI : Math.acos(-1/e.mag);
+
+  ctx.strokeStyle = '#F3F487';
+  ctx.lineWidth = '2';
+  if(emphasise_prediction > t) {
+    ctx.globalAlpha = Math.min(1, 0.2 + (emphasise_prediction-t)/900);
+  }
+  else {
+    ctx.globalAlpha = 0.2;
+    emphasise_prediction = null;
+  }
+
+  ctx.beginPath();
+  for (var angle = -max_angle; angle < max_angle; angle+=max_angle/512) {
+    var r = p/(1 + e.mag * Math.cos(angle));
+    if(r < dominant.body.SOI) {
+      ctx.lineTo(
+        300 + (dominant.body.pos.x - pos.x + r*Math.cos(angle + e.arg))/scale,
+        300 - (dominant.body.pos.y - pos.y + r*Math.sin(angle + e.arg))/scale
+      );
+    }
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
   if(mouse.start) {
+    // exhaust line
     ctx.strokeStyle = '#fd1';
     ctx.lineWidth = '3';
     ctx.beginPath();
