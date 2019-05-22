@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
 
   canvas.addEventListener('mousedown', mouseEvent, false);
-  canvas.addEventListener('mouseup',   mouseEvent, false);
+  document.addEventListener('mouseup', mouseEvent, false);
   canvas.addEventListener('mousemove', mouseEvent, false);
 
   canvas.addEventListener('wheel', function(e) {
@@ -121,6 +121,8 @@ function loop(t) {
     desired_step = phys_step * 2;
     time_announcement = t + 2000;
   }
+  if(desired_step < frame_step/1000)
+    desired_step = frame_step/1000;
 
   while(dt > frame_step) {
     var last_acc = acc;
@@ -130,7 +132,7 @@ function loop(t) {
     if(mouse.start) {
       emphasise_prediction = t + 1500;
       max_step = 1/6;
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/20); // maximum approx. 40ms-2
+      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/10); // maximum approx. 85ms-2 diagonally, 60ms-2 vertical and horzontal
     }
 
     debug_lines.max = max_step;
@@ -138,21 +140,16 @@ function loop(t) {
     debug_lines.step = phys_step;
 
     var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
+    var target_step = Math.min(desired_step, max_attainable);
 
-    if(desired_step <= max_step && phys_step != desired_step) {
-      if(phys_step < desired_step)
-        phys_step *= 2;
-      else
-        phys_step = desired_step;
+    if(phys_step > target_step) {
+      phys_step = target_step;
       time_announcement = t + 2000;
     }
-    else if(phys_step > max_step || (desired_step > max_step && phys_step < max_attainable)) {
-      phys_step = max_attainable;
+    else if(phys_step < target_step) {
+      phys_step *= 2;
       time_announcement = t + 2000;
     }
-
-    if(phys_step < frame_step/1000)
-      phys_step = frame_step/1000;
 
     // velocity verlet the first: x += v*dt + 1/2 a*dt^2
     pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
@@ -200,8 +197,8 @@ function loop(t) {
     max_step = 0.01 * dominant.vel.mag/dominant.acc.mag;
     if(max_step < frame_step/1000)
       max_step = frame_step/1000;
-    else if(max_step > frame_step/1000 * 33554432)
-      max_step = frame_step/1000 * 33554432;
+    else if(max_step > frame_step/1000 * 268435456)
+      max_step = frame_step/1000 * 268435456;
 
     dt -= frame_step;
   } // end physics
@@ -267,7 +264,7 @@ function loop(t) {
 
   ctx.strokeStyle = '#dec';
   ctx.globalAlpha = 0.6;
-  ctx.lineWidth = '2';
+  ctx.lineWidth = '1';
 
   var trail_parent = pos_trail[0].parent;
   ctx.beginPath();
@@ -301,7 +298,7 @@ function loop(t) {
     ) {
       ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
       ctx.strokeStyle = body.colour;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(
         300 + (body.parent.pos.x - pos.x)/scale,
@@ -372,15 +369,18 @@ function loop(t) {
 
   ctx.shadowBlur = 0;
 
-  // patched conic prediction
+  // osculating orbit
   var h = dominant.pos.mag * dominant.vel.mag * Math.sin(dominant.vel.arg - dominant.pos.arg); // specific relative angular momentum; <0 = clockwise
   var p = h * h / (GRAV * dominant.body.m); // semi-latus rectum
   // eccentricity vector:
   var eccentricity_angle = dominant.vel.arg + ((h >= 0) ? -Math.PI/2 : Math.PI/2);
-  var e = dominant.vel.mag * Math.abs(h) / (GRAV * dominant.body.m);
-  e = new Vec(e * Math.cos(eccentricity_angle), e * Math.sin(eccentricity_angle)).sub(new Vec(dominant.pos).normalise());
+  var v_h_cross = dominant.vel.mag * Math.abs(h) / (GRAV * dominant.body.m);
+  var eccentricity = new Vec(v_h_cross * Math.cos(eccentricity_angle), v_h_cross * Math.sin(eccentricity_angle)).sub(new Vec(dominant.pos).normalise());
 
-  var max_angle = (e.mag < 1) ? Math.PI : Math.acos(-1/e.mag);
+  var apo_arg = eccentricity.arg;
+  var e = eccentricity.mag;
+
+  var max_angle = (e < 1) ? Math.PI : Math.acos(-1/e) * 255/256;
 
   ctx.strokeStyle = '#F3F487';
   ctx.lineWidth = '2';
@@ -393,12 +393,12 @@ function loop(t) {
   }
 
   ctx.beginPath();
-  for (var angle = -max_angle; angle < max_angle; angle+=max_angle/512) {
-    var r = p/(1 + e.mag * Math.cos(angle));
+  for (var angle = -max_angle; angle <= max_angle; angle+=max_angle/256) {
+    var r = p/(1 + e * Math.cos(angle));
     if(r < dominant.body.SOI) {
       ctx.lineTo(
-        300 + (dominant.body.pos.x - pos.x + r*Math.cos(angle + e.arg))/scale,
-        300 - (dominant.body.pos.y - pos.y + r*Math.sin(angle + e.arg))/scale
+        300 + (dominant.body.pos.x - pos.x + r*Math.cos(angle + apo_arg))/scale,
+        300 - (dominant.body.pos.y - pos.y + r*Math.sin(angle + apo_arg))/scale
       );
     }
   }
