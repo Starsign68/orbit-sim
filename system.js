@@ -111,6 +111,7 @@ var system = {
       m: 5.68e26,
       colour: '#D1BA84',
       atmos: true,
+      rings: [[9.2e7,1.18e8],[1.22e8,1.37e8]],
       satellites: [
         {
           name: 'Titan',
@@ -120,6 +121,60 @@ var system = {
           m: 1.35e23,
           colour: '#E9C360',
           atmos: true
+        },
+        {
+          name: 'Rhea',
+          M: -0.97,
+          a: 5.27e8,
+          r: 7.6e5,
+          m: 2.3e21,
+          colour: '#BBBBBB',
+          atmos: false
+        },
+        {
+          name: 'Iapetus',
+          M: -1.32,
+          a: 3.56e9,
+          r: 7.4e5,
+          m: 1.8e21,
+          colour: '#625447',
+          atmos: false
+        },
+        {
+          name: 'Dione',
+          M: 0.67,
+          a: 3.77e8,
+          r: 5.6e5,
+          m: 1.1e21,
+          colour: '#AAAAAA',
+          atmos: false
+        },
+        {
+          name: 'Tethys',
+          M: -0.88,
+          a: 2.95e8,
+          r: 5.3e5,
+          m: 6.2e20,
+          colour: '#969696',
+          atmos: false
+        },
+        {
+          name: 'Enceladus',
+          M: -0.2,
+          a: 2.38e8,
+          r: 2.5e5,
+          m: 1.1e20,
+          colour: '#c6c6c6',
+          atmos: false
+        },
+        {
+          name: 'Mimas',
+          M: -2.83,
+          a: 1.86e8,
+          r: 2e5,
+          m: 4e19,
+          colour: '#818181',
+          atmos: false
         }
       ]
     },

@@ -76,7 +76,7 @@ var acc = new Vec();
 
 var dominant = {
   body: system,
-  pos: new Vec(),
+  pos: new Vec(1),
   vel: new Vec(),
   acc: new Vec()
 };
@@ -365,9 +365,54 @@ function loop(t) {
       );
       ctx.fill();
     }
-  })(system);
 
-  ctx.shadowBlur = 0;
+    ctx.shadowBlur = 0;
+
+    if(body.rings) {
+      if(body.r < scale * 5)
+        ctx.globalAlpha = (body.r/scale - 1)/4;
+
+      body.rings.forEach(function(ring) {
+        if(pos.to(body.pos).mag - (body.r + ring[1]) < 430 * scale && body.r > scale) {
+          ctx.fillStyle = body.colour;
+          ctx.beginPath();
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            ring[0]/scale,
+            0, 2*Math.PI, true
+          );
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            ring[1]/scale,
+            0, 2*Math.PI, false
+          );
+          ctx.fill();
+
+          ctx.fillStyle = '#000';
+          ctx.beginPath();
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            ring[0]/scale-1,
+            -body.pos.arg + Math.asin(body.r/ring[0]),
+            -body.pos.arg - Math.asin(body.r/ring[0]),
+            true
+          );
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            ring[1]/scale+1,
+            -body.pos.arg - Math.asin(body.r/ring[1]),
+            -body.pos.arg + Math.asin(body.r/ring[1]),
+            false
+          );
+          ctx.fill();
+        }
+      });
+    }
+  })(system);
 
   // osculating orbit
   var h = dominant.pos.mag * dominant.vel.mag * Math.sin(dominant.vel.arg - dominant.pos.arg); // specific relative angular momentum; <0 = clockwise
