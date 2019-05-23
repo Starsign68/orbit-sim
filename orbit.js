@@ -51,12 +51,11 @@ document.addEventListener('keydown',function(e) {
     key = 'Arrow'+key; // standard name
   if(['ArrowDown','ArrowLeft','ArrowRight','ArrowUp'].indexOf(key) != -1)
     e.preventDefault();
-  debug_lines.key = key;
   keyboard[key] = true;
 });
 document.addEventListener('keyup', function(e) {
   var key = e.key;
-  if(['Down','Left','Right','Up'].indexOf(e.key) != -1)
+  if(['Down','Left','Right','Up'].indexOf(key) != -1)
     key = 'Arrow'+key;
   keyboard[key] = false;
 });
@@ -134,10 +133,6 @@ function loop(t) {
       max_step = 1/6;
       acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/10); // maximum approx. 85ms-2 diagonally, 60ms-2 vertical and horzontal
     }
-
-    debug_lines.max = max_step;
-    debug_lines.desired = desired_step;
-    debug_lines.step = phys_step;
 
     var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
     var target_step = Math.min(desired_step, max_attainable);
@@ -263,29 +258,21 @@ function loop(t) {
   ctx.drawImage(background, back_x, back_y, 600, 600, 0, 0, 600, 600);
 
   ctx.strokeStyle = '#dec';
-  ctx.globalAlpha = 0.6;
+  ctx.globalAlpha = 0.5;
   ctx.lineWidth = '1';
 
   var trail_parent = pos_trail[0].parent;
   ctx.beginPath();
-  ctx.moveTo(
-    300 + (trail_parent.pos.x + pos_trail[0].offset.x - pos.x)/scale,
-    300 - (trail_parent.pos.y + pos_trail[0].offset.y - pos.y)/scale
-  );
-  for(var i = 1; i < pos_trail.length; i++) {
-    if(pos_trail[i].parent == trail_parent) {
-      ctx.lineTo(
-        300 + (trail_parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
-        300 - (trail_parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
-      );
+  for(var i = 0; i < pos_trail.length; i++) {
+    if(pos_trail[i].parent != trail_parent) {
+      ctx.stroke();
+      ctx.beginPath();
+      trail_parent = pos_trail[i].parent;
     }
-    else {
-      trail_parent = pos_trail[i].parent
-      ctx.moveTo(
-        300 + (trail_parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
-        300 - (trail_parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
-      );
-    }
+    ctx.lineTo(
+      300 + (trail_parent.pos.x + pos_trail[i].offset.x - pos.x)/scale,
+      300 - (trail_parent.pos.y + pos_trail[i].offset.y - pos.y)/scale
+    );
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
@@ -425,21 +412,21 @@ function loop(t) {
   var apo_arg = eccentricity.arg;
   var e = eccentricity.mag;
 
-  var max_angle = (e < 1) ? Math.PI : Math.acos(-1/e) * 255/256;
+  var max_angle = (e < 1) ? Math.PI : Math.acos(-1/e);
 
   ctx.strokeStyle = '#F3F487';
   ctx.lineWidth = '2';
   if(emphasise_prediction > t) {
-    ctx.globalAlpha = Math.min(1, 0.2 + (emphasise_prediction-t)/900);
+    ctx.globalAlpha = Math.min(1, 0.4 + (emphasise_prediction-t)/2000);
   }
   else {
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = 0.4;
     emphasise_prediction = null;
   }
 
   ctx.beginPath();
   for (var angle = -max_angle; angle <= max_angle; angle+=max_angle/256) {
-    var r = p/(1 + e * Math.cos(angle));
+    var r = p/Math.abs(1 + e * Math.cos(angle));
     if(r < dominant.body.SOI) {
       ctx.lineTo(
         300 + (dominant.body.pos.x - pos.x + r*Math.cos(angle + apo_arg))/scale,
@@ -448,6 +435,33 @@ function loop(t) {
     }
   }
   ctx.stroke();
+
+  if(p > scale*2) {
+    var r = p/(1+e);
+    if(p < scale*3)
+      ctx.globalAlpha *= p/scale - 2;
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.arc(
+      300 + (dominant.body.pos.x - pos.x + r*Math.cos(apo_arg))/scale,
+      300 - (dominant.body.pos.y - pos.y + r*Math.sin(apo_arg))/scale,
+      6,
+      Math.PI/2-apo_arg, -Math.PI/2-apo_arg
+    );
+    ctx.fill();
+
+    if((r=p/(1-e)) > 0) {
+      ctx.beginPath();
+      ctx.arc(
+        300 + (dominant.body.pos.x - pos.x + r*Math.cos(Math.PI+apo_arg))/scale,
+        300 - (dominant.body.pos.y - pos.y + r*Math.sin(Math.PI+apo_arg))/scale,
+        6,
+        Math.PI/2-apo_arg, -Math.PI/2-apo_arg
+      );
+      ctx.stroke();
+    }
+  }
+
   ctx.globalAlpha = 1;
 
   if(mouse.start) {
@@ -469,7 +483,7 @@ function loop(t) {
     ctx.globalAlpha = Math.min(1, (time_announcement-t)/1000);
     ctx.textAlign = 'center';
     ctx.font = '24px monospace';
-    ctx.fillStyle = '#35ea9c';
+    ctx.fillStyle = (phys_step*2 > max_step) ? '#EBDD42' : '#35ea9c';
 
     ctx.fillText('Time rate: \u00D7' + 1000*phys_step/frame_step, 300, 50);
 
