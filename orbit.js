@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded',function() {
 
   debug_output = document.getElementById('d');
 
-  ctx = canvas.getContext('2d');
+  ctx = canvas.getContext('2d', {alpha: false});
   requestAnimationFrame(function(t){
     last_time=t;
     requestAnimationFrame(loop);
@@ -153,7 +153,7 @@ function loop(t) {
 
     (function updateBody(body) {
       if(body.parent) {
-        body.M += body.angular_vel * phys_step;
+        body.M += body.mean_motion * phys_step;
         if(body.M > Math.PI)
           body.M -= 2*Math.PI;
         body.pos = get_body_pos(body);
@@ -294,11 +294,12 @@ function loop(t) {
         0, 2*Math.PI
       );
       ctx.stroke();
-      ctx.globalAlpha = 1;
     }
 
     for(var i in body.satellites)
       drawBody(body.satellites[i]);
+
+    ctx.globalAlpha = 1;
 
     //body
     if(pos.to(body.pos).mag - body.r < 430 * scale) {
@@ -351,16 +352,15 @@ function loop(t) {
         angle_start, angle_end
       );
       ctx.fill();
+      ctx.shadowBlur = 0;
     }
-
-    ctx.shadowBlur = 0;
 
     if(body.rings) {
       if(body.r < scale * 5)
         ctx.globalAlpha = (body.r/scale - 1)/4;
 
       body.rings.forEach(function(ring) {
-        if(pos.to(body.pos).mag - (body.r + ring[1]) < 430 * scale && body.r > scale) {
+        if(pos.to(body.pos).mag - ring[1] < 430 * scale && body.r > scale) {
           ctx.fillStyle = body.colour;
           ctx.beginPath();
           ctx.arc(
@@ -437,20 +437,24 @@ function loop(t) {
   ctx.stroke();
 
   if(p > scale*2) {
-    var r = p/(1+e);
     if(p < scale*3)
       ctx.globalAlpha *= p/scale - 2;
     ctx.fillStyle = ctx.strokeStyle;
-    ctx.beginPath();
-    ctx.arc(
-      300 + (dominant.body.pos.x - pos.x + r*Math.cos(apo_arg))/scale,
-      300 - (dominant.body.pos.y - pos.y + r*Math.sin(apo_arg))/scale,
-      6,
-      Math.PI/2-apo_arg, -Math.PI/2-apo_arg
-    );
-    ctx.fill();
 
-    if((r=p/(1-e)) > 0) {
+    var r = p/(1+e);
+    if(r > dominant.body.r) {
+        ctx.beginPath();
+        ctx.arc(
+          300 + (dominant.body.pos.x - pos.x + r*Math.cos(apo_arg))/scale,
+          300 - (dominant.body.pos.y - pos.y + r*Math.sin(apo_arg))/scale,
+          6,
+          Math.PI/2-apo_arg, -Math.PI/2-apo_arg
+        );
+        ctx.fill();
+    }
+
+    r = p/(1-e);
+    if(r > 0 && r < dominant.body.SOI) {
       ctx.beginPath();
       ctx.arc(
         300 + (dominant.body.pos.x - pos.x + r*Math.cos(Math.PI+apo_arg))/scale,
@@ -513,7 +517,7 @@ function generate_background(size) {
   var canvas = document.createElement('canvas');
   canvas.height = size;
   canvas.width  = size;
-  var ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d', {alpha: false});
 
   ctx.fillStyle = '#000';
   ctx.fillRect(0,0,size,size);

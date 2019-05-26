@@ -205,7 +205,7 @@ var GRAV = 6.674e-11;
   body.pos = get_body_pos(body);
   for(var i in body.satellites) {
     body.satellites[i].parent = body;
-    body.satellites[i].angular_vel = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
+    body.satellites[i].mean_motion = Math.sqrt(GRAV*body.m/Math.pow(body.satellites[i].a, 3));
     body.satellites[i].SOI = body.satellites[i].a * Math.pow(body.satellites[i].m / body.m, 2/5);
     initialise_system(body.satellites[i]);
   }
@@ -218,7 +218,7 @@ function get_body_pos(body) {
 
 function get_body_vel(body) {
   return (body.parent) ? new Vec(-Math.sin(body.M), Math.cos(body.M))
-                          .set_mag(body.a * body.angular_vel)
+                          .set_mag(body.a * body.mean_motion)
                           .add(get_body_vel(body.parent))
                        : new Vec(0,0);
 }
