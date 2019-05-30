@@ -16,16 +16,16 @@ var background = generate_background(1200);
 document.addEventListener('DOMContentLoaded',function() {
   var canvas = document.getElementById('screen');
 
-  canvas.addEventListener('mousedown', mouseEvent, false);
-  document.addEventListener('mouseup', mouseEvent, false);
-  canvas.addEventListener('mousemove', mouseEvent, false);
+  canvas.addEventListener('mousedown', mouseHandler, false);
+  document.addEventListener('mouseup', mouseHandler, false);
+  canvas.addEventListener('mousemove', mouseHandler, false);
 
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
     mouse.scroll = e.deltaY;
   });
 
-  function mouseEvent(e) {
+  function mouseHandler(e) {
     var bounds = canvas.getBoundingClientRect();
     mouse.x = (e.clientX - bounds.left) * canvas.width  / canvas.clientWidth;
     mouse.y = (e.clientY - bounds.top ) * canvas.height / canvas.clientHeight;
@@ -75,29 +75,13 @@ var acc = new Vec();
 
 var dominant = {
   body: system,
-  pos: new Vec(1),
+  pos: new Vec(),
   vel: new Vec(),
   acc: new Vec()
 };
 var emphasise_prediction = null;
 var pos_trail = [];
 
-function orbit_around(body, distance) {
-  if(distance == undefined)
-    distance = 0.2;
-
-  pos.set(0,body.r * (1+distance)).add(body.pos);
-  vel.set(-Math.sqrt(GRAV*body.m/(body.r * (1+distance))),0).add(get_body_vel(body));
-  acc.set(0);
-
-  pos_trail.push({
-    parent: {pos:{x:0,y:0}},
-    offset: {x:0,y:0}
-  }); // garbage position to split the trail
-
-  if(max_step > frame_step * 512/1000)
-    max_step = frame_step * 512/1000;
-}
 orbit_around(system.satellites[2]);
 
 var scale = 40000;
@@ -124,79 +108,9 @@ function loop(t) {
     desired_step = frame_step/1000;
 
   while(dt > frame_step) {
-    var last_acc = acc;
-    acc = new Vec();
-
-    // thrust
-    if(mouse.start) {
-      emphasise_prediction = t + 1500;
-      max_step = 1/6;
-      acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/10); // maximum approx. 85ms-2 diagonally, 60ms-2 vertical and horzontal
-    }
-
-    var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
-    var target_step = Math.min(desired_step, max_attainable);
-
-    if(phys_step > target_step) {
-      phys_step = target_step;
-      time_announcement = t + 2000;
-    }
-    else if(phys_step < target_step) {
-      phys_step *= 2;
-      time_announcement = t + 2000;
-    }
-
-    // velocity verlet the first: x += v*dt + 1/2 a*dt^2
-    pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
-
-    var dominant_candidate = system;
-
-    (function updateBody(body) {
-      if(body.parent) {
-        body.M += body.mean_motion * phys_step;
-        if(body.M > Math.PI)
-          body.M -= 2*Math.PI;
-        body.pos = get_body_pos(body);
-      }
-
-      var displacement = pos.to(body.pos);
-      var acceleration = new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared);
-
-      // velocity verlet the second
-      acc.add(acceleration);
-
-      if(displacement.mag < body.r) {
-        pos.set(new Vec(body.pos).sub(new Vec(displacement).set_mag(body.r)));
-        vel.set(get_body_vel(body));
-      }
-
-      if(dominant_candidate == body.parent && displacement.mag < body.SOI) {
-        dominant_candidate = body;
-      }
-      if(body == dominant_candidate) {
-        dominant.pos = displacement.negate();
-        dominant.acc = acceleration;
-      }
-
-      for(var i in body.satellites)
-        updateBody(body.satellites[i]);
-    })(system);
-
-    dominant.body = dominant_candidate;
-    dominant.vel = get_body_vel(dominant.body).sub(vel).negate();
-    debug_lines.dominant = dominant.body.name;
-
-    // velocity verlet the third (and final): v += (a(t) + a(t+dt))*dt/2
-    vel.add(last_acc.add(acc).scale(phys_step/2));
-
-    max_step = 0.01 * dominant.vel.mag/dominant.acc.mag;
-    if(max_step < frame_step/1000)
-      max_step = frame_step/1000;
-    else if(max_step > frame_step/1000 * 268435456)
-      max_step = frame_step/1000 * 268435456;
-
+    physics_update(t, dt);
     dt -= frame_step;
-  } // end physics
+  }
 
   pos_trail.push({
     parent: dominant.body,
@@ -235,7 +149,6 @@ function loop(t) {
 
   mouse.scroll = 0;
 
-  keyboard.prev = {}
   for(var key in keyboard) {
     if(key == 'prev')
       continue;
@@ -277,140 +190,25 @@ function loop(t) {
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  (function drawBody(body) {
-    // orbit
-    if(body.parent
-      && body.a < 10000 * scale
-      && pos.to(body.parent.pos).mag - body.a < 430 * scale
-    ) {
-      ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
-      ctx.strokeStyle = body.colour;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(
-        300 + (body.parent.pos.x - pos.x)/scale,
-        300 - (body.parent.pos.y - pos.y)/scale,
-        body.a/scale,
-        0, 2*Math.PI
-      );
-      ctx.stroke();
-    }
+  drawBody(system);
 
-    for(var i in body.satellites)
-      drawBody(body.satellites[i]);
-
-    ctx.globalAlpha = 1;
-
-    //body
-    if(pos.to(body.pos).mag - body.r < 430 * scale) {
-      var angle_start = 0;
-      var angle_end = 2*Math.PI;
-      ctx.shadowBlur = 0;
-      
-      if(body.r > scale) {
-        // extra detail
-        if(body != system) {
-          // draw shadow
-          var angle_start = Math.PI/2 - body.pos.arg;
-          var angle_end = angle_start+Math.PI;
-
-          if(body.r < scale * 5) {
-            ctx.fillStyle = body.colour;
-            ctx.beginPath();
-            ctx.arc(
-              300 + (body.pos.x - pos.x)/scale,
-              300 - (body.pos.y - pos.y)/scale,
-              5,
-              angle_start, angle_end, true
-            );
-            ctx.fill();
-            ctx.globalAlpha = (body.r/scale - 1)/4;
-          }
-
-          ctx.fillStyle = '#000';
-          ctx.beginPath();
-          ctx.arc(
-            300 + (body.pos.x - pos.x)/scale,
-            300 - (body.pos.y - pos.y)/scale,
-            Math.max(5, body.r/scale),
-            angle_start, angle_end, true
-          );
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-        if(body.atmos)
-          ctx.shadowBlur = 0.1*body.r/scale;
-      }
-
-      ctx.shadowColor = '#fff';
-      ctx.fillStyle = body.colour;
-      ctx.beginPath();
-      ctx.arc(
-        300 + (body.pos.x - pos.x)/scale,
-        300 - (body.pos.y - pos.y)/scale,
-        Math.max(5, body.r/scale),
-        angle_start, angle_end
-      );
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    if(body.rings) {
-      if(body.r < scale * 5)
-        ctx.globalAlpha = (body.r/scale - 1)/4;
-
-      body.rings.forEach(function(ring) {
-        if(pos.to(body.pos).mag - ring[1] < 430 * scale && body.r > scale) {
-          ctx.fillStyle = body.colour;
-          ctx.beginPath();
-          ctx.arc(
-            300 + (body.pos.x - pos.x)/scale,
-            300 - (body.pos.y - pos.y)/scale,
-            ring[0]/scale,
-            0, 2*Math.PI, true
-          );
-          ctx.arc(
-            300 + (body.pos.x - pos.x)/scale,
-            300 - (body.pos.y - pos.y)/scale,
-            ring[1]/scale,
-            0, 2*Math.PI, false
-          );
-          ctx.fill();
-
-          ctx.fillStyle = '#000';
-          ctx.beginPath();
-          ctx.arc(
-            300 + (body.pos.x - pos.x)/scale,
-            300 - (body.pos.y - pos.y)/scale,
-            ring[0]/scale-1,
-            -body.pos.arg + Math.asin(body.r/ring[0]),
-            -body.pos.arg - Math.asin(body.r/ring[0]),
-            true
-          );
-          ctx.arc(
-            300 + (body.pos.x - pos.x)/scale,
-            300 - (body.pos.y - pos.y)/scale,
-            ring[1]/scale+1,
-            -body.pos.arg - Math.asin(body.r/ring[1]),
-            -body.pos.arg + Math.asin(body.r/ring[1]),
-            false
-          );
-          ctx.fill();
-        }
-      });
-    }
-  })(system);
-
-  // osculating orbit
+  // osculating orbit parameters
   var h = dominant.pos.mag * dominant.vel.mag * Math.sin(dominant.vel.arg - dominant.pos.arg); // specific relative angular momentum; <0 = clockwise
   var p = h * h / (GRAV * dominant.body.m); // semi-latus rectum
-  // eccentricity vector:
+  
   var eccentricity_angle = dominant.vel.arg + ((h >= 0) ? -Math.PI/2 : Math.PI/2);
   var v_h_cross = dominant.vel.mag * Math.abs(h) / (GRAV * dominant.body.m);
-  var eccentricity = new Vec(v_h_cross * Math.cos(eccentricity_angle), v_h_cross * Math.sin(eccentricity_angle)).sub(new Vec(dominant.pos).normalise());
+  var eccentricity_vector = new Vec(v_h_cross * Math.cos(eccentricity_angle), v_h_cross * Math.sin(eccentricity_angle));
+  try {
+    eccentricity_vector.sub(new Vec(dominant.pos).normalise());
+  }
+  catch(e) {
+    if(!(e instanceof RangeError))
+      throw e;
+  }
 
-  var apo_arg = eccentricity.arg;
-  var e = eccentricity.mag;
+  var apo_arg = eccentricity_vector.arg;
+  var e = eccentricity_vector.mag;
 
   var max_angle = (e < 1) ? Math.PI : Math.acos(-1/e);
 
@@ -511,6 +309,220 @@ function loop(t) {
   }
 
   requestAnimationFrame(loop);
+}
+
+function physics_update(t, dt) {
+  var last_acc = acc;
+  acc = new Vec();
+
+  // thrust
+  if(mouse.start) {
+    emphasise_prediction = t + 1500;
+    max_step = 1/6;
+    acc.set(mouse.x - mouse.start.x, mouse.start.y - mouse.y).scale(1/10); // maximum approx. 85ms-2 diagonally, 60ms-2 vertical and horzontal
+  }
+
+  var max_attainable = frame_step/1000*Math.pow(2, Math.floor(Math.log(1000*max_step/frame_step)/Math.LN2));
+  var target_step = Math.min(desired_step, max_attainable);
+
+  if(phys_step > target_step) {
+    phys_step = target_step;
+    time_announcement = t + 2000;
+  }
+  else if(phys_step < target_step) {
+    phys_step *= 2;
+    time_announcement = t + 2000;
+  }
+
+  // velocity verlet the first: x += v*dt + 1/2 a*dt^2
+  pos.add(new Vec(vel).scale(phys_step)).add(new Vec(last_acc).scale(phys_step*phys_step/2));
+
+  var dominant_candidate = system;
+
+  (function updateBody(body) {
+    if(body.parent) {
+      body.M += body.mean_motion * phys_step;
+      if(body.M > Math.PI)
+        body.M -= 2*Math.PI;
+      body.pos = get_body_pos(body);
+    }
+
+    var displacement = pos.to(body.pos);
+    var acceleration = new Vec(displacement).set_mag(GRAV*body.m/displacement.mag_squared);
+
+    // velocity verlet the second
+    acc.add(acceleration);
+
+    if(displacement.mag < body.r) {
+      pos.set(new Vec(body.pos).sub(new Vec(displacement).set_mag(body.r)));
+      vel.set(get_body_vel(body));
+    }
+
+    if(dominant_candidate == body.parent && displacement.mag < body.SOI) {
+      dominant_candidate = body;
+    }
+    if(body == dominant_candidate) {
+      dominant.pos = displacement.negate();
+      dominant.acc = acceleration;
+    }
+
+    for(var i in body.satellites)
+      updateBody(body.satellites[i]);
+  })(system);
+
+  dominant.body = dominant_candidate;
+  dominant.vel = get_body_vel(dominant.body).sub(vel).negate();
+  debug_lines.dominant = dominant.body.name;
+
+  // velocity verlet the third (and final): v += (a(t) + a(t+dt))*dt/2
+  vel.add(last_acc.add(acc).scale(phys_step/2));
+
+  max_step = 0.01 * dominant.vel.mag/dominant.acc.mag;
+  if(max_step < frame_step/1000)
+    max_step = frame_step/1000;
+  else if(max_step > frame_step/1000 * 268435456)
+    max_step = frame_step/1000 * 268435456;
+}
+
+function orbit_around(body, distance) {
+  if(distance == undefined)
+    distance = 0.2;
+
+  pos.set(0,body.r * (1+distance)).add(body.pos);
+  vel.set(-Math.sqrt(GRAV*body.m/(body.r * (1+distance))),0).add(get_body_vel(body));
+  acc.set(0);
+
+  pos_trail.push({
+    parent: {pos:{x:0,y:0}},
+    offset: {x:0,y:0}
+  }); // garbage position to split the trail
+
+  if(max_step > frame_step * 512/1000)
+    max_step = frame_step * 512/1000;
+}
+
+function drawBody(body) {
+  // orbit
+  if(body.parent
+    && body.a < 10000 * scale
+    && pos.to(body.parent.pos).mag - body.a < 430 * scale
+  ) {
+    ctx.globalAlpha = Math.min(1, 1.25-body.a/scale/8000);
+    ctx.strokeStyle = body.colour;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(
+      300 + (body.parent.pos.x - pos.x)/scale,
+      300 - (body.parent.pos.y - pos.y)/scale,
+      body.a/scale,
+      0, 2*Math.PI
+    );
+    ctx.stroke();
+  }
+
+  for(var i in body.satellites)
+    drawBody(body.satellites[i]);
+
+  ctx.globalAlpha = 1;
+
+  //body
+  if(pos.to(body.pos).mag - body.r < 430 * scale) {
+    var angle_start = 0;
+    var angle_end = 2*Math.PI;
+    ctx.shadowBlur = 0;
+    
+    if(body.r > scale) {
+      // extra detail
+      if(body != system) {
+        // draw shadow
+        var angle_start = Math.PI/2 - body.pos.arg;
+        var angle_end = angle_start+Math.PI;
+
+        if(body.r < scale * 5) {
+          ctx.fillStyle = body.colour;
+          ctx.beginPath();
+          ctx.arc(
+            300 + (body.pos.x - pos.x)/scale,
+            300 - (body.pos.y - pos.y)/scale,
+            5,
+            angle_start, angle_end, true
+          );
+          ctx.fill();
+          ctx.globalAlpha = (body.r/scale - 1)/4;
+        }
+
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          Math.max(5, body.r/scale),
+          angle_start, angle_end, true
+        );
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      if(body.atmos)
+        ctx.shadowBlur = 0.1*body.r/scale;
+    }
+
+    ctx.shadowColor = '#fff';
+    ctx.fillStyle = body.colour;
+    ctx.beginPath();
+    ctx.arc(
+      300 + (body.pos.x - pos.x)/scale,
+      300 - (body.pos.y - pos.y)/scale,
+      Math.max(5, body.r/scale),
+      angle_start, angle_end
+    );
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  if(body.rings) {
+    if(body.r < scale * 5)
+      ctx.globalAlpha = (body.r/scale - 1)/4;
+
+    body.rings.forEach(function(ring) {
+      if(pos.to(body.pos).mag - ring[1] < 430 * scale && body.r > scale) {
+        ctx.fillStyle = body.colour;
+        ctx.beginPath();
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          ring[0]/scale,
+          0, 2*Math.PI, true
+        );
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          ring[1]/scale,
+          0, 2*Math.PI, false
+        );
+        ctx.fill();
+
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          ring[0]/scale-1,
+          -body.pos.arg + Math.asin(body.r/ring[0]),
+          -body.pos.arg - Math.asin(body.r/ring[0]),
+          true
+        );
+        ctx.arc(
+          300 + (body.pos.x - pos.x)/scale,
+          300 - (body.pos.y - pos.y)/scale,
+          ring[1]/scale+1,
+          -body.pos.arg - Math.asin(body.r/ring[1]),
+          -body.pos.arg + Math.asin(body.r/ring[1]),
+          false
+        );
+        ctx.fill();
+      }
+    });
+  }
 }
 
 function generate_background(size) {

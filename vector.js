@@ -67,7 +67,7 @@ Object.defineProperty(Vec.prototype, 'mag', {
       if(new_mag == 0)
         return this;
       else
-        throw 'Tried to resize a zero vector';
+        throw new RangeError('Tried to resize a zero vector');
     }
     this.scale(new_mag/old_mag);
   }
@@ -85,7 +85,8 @@ Vec.prototype.set_mag = function set_mag(new_mag) {
 }
 
 Vec.prototype.normalise = function normalise() {
-  return this.set_mag(1);
+  this.mag = 1;
+  return this;
 }
 
 Object.defineProperty(Vec.prototype, 'arg', {
