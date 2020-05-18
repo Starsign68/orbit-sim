@@ -6,4 +6,4 @@ This is a JavaScript tool that simulates gravity in a simplified, two-dimensiona
 
 No external dependencies and fully compatible with Internet Explorer, so there should be no problems running it.
 
-See the [current version of the simulation](https://kazitor.github.io/orbit-sim/orbit.html) in action.
+See the [current version of the simulation](https://lusign68.github.io/orbit-sim/orbit.html) in action.
